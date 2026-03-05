@@ -1,1 +1,5 @@
 langchain
+fastapi 
+uvicorn 
+PyMuPDF
+python-multipart
