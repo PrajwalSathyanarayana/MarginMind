@@ -3,3 +3,8 @@ fastapi
 uvicorn 
 PyMuPDF
 python-multipart
+pdfplumber
+python-dotenv
+google-cloud-storage
+google-cloud-firestore
+google-cloud-tasks
