@@ -4,6 +4,7 @@ import tempfile
 from pathlib import Path
 import fitz
 import uuid # henerate unique job ID 
+from Modal.diagrams_tables import process as process_diagrams
 
 app = FastAPI()
 
@@ -30,42 +31,38 @@ async def health_check():
 async def upload_pdf(file: UploadFile = File(...)):
 
     job_id = str(uuid.uuid4())
+    content = await file.read()
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp:
-        temp_path = temp.name
-        content = await file.read()
-        temp.write(content)
+    # with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp:
+    #     temp_path = temp.name
+    #     content = await file.read()
+    #     temp.write(content)
     
-    try:
-        doc = fitz.open(temp_path)
-        text = ""
+    # try:
+    #     doc = fitz.open(temp_path)
+    #     text = ""
         
-        for page_num in range(len(doc)):
-            page = doc[page_num]
-            text += f"\n--- PAGE {page_num + 1} ---\n"
-            text += page.get_text()
-        page_count = len(doc)
-        doc.close()
+    #     for page_num in range(len(doc)):
+    #         page = doc[page_num]
+    #         text += f"\n--- PAGE {page_num + 1} ---\n"
+    #         text += page.get_text()
+    #     page_count = len(doc)
+    #     doc.close()
         
+    result = process_diagrams(content, job_id, file.filename)
         # Save result to job store so /status and /feedback can retrieve it
-        job_store[job_id] = {
-            "job_id":     job_id,
-            "status":     "done",
-            "filename":   file.filename,
-            "page_count": page_count,
-            "content":    text,
-            "annotations": [],  # will be filled by modality processors in M2
-        }
+    job_store[job_id] = result
         
-        return {
-            "job_id":   job_id,       # added — frontend uses this to poll status
+    return {
+            "job_id":   job_id,      
+            "status": "done",
             "filename": file.filename,
-            "pages":    page_count,
-            "content":  text
+            "page_count": result["page_count"],
+            "table_count": result["table_count"], 
         }
     
-    finally:
-        Path(temp_path).unlink()
+    # finally:
+    #     Path(temp_path).unlink()
 
 @app.get("/status/{job_id}") # Frontend polls this after upload to check if processing is complete
 async def get_status(job_id: str):
@@ -82,13 +79,28 @@ async def get_status(job_id: str):
 async def get_feedback(job_id: str):
     if job_id not in job_store:
         return {"error": "Job not found"}
+    
     job = job_store[job_id]
+
+    # Safely convert any None values in tables to empty string
+    # pdfplumber sometimes returns None for empty table cells
+    safe_tables = []
+    for table in job.get("tables", []):
+        safe_rows = [
+            [cell if cell is not None else "" for cell in row]
+            for row in table["data"]
+        ]
+        safe_tables.append({
+            "page_num": table["page_num"],
+            "data": safe_rows
+        })
+
     return {
         "job_id":      job_id,
         "filename":    job["filename"],
         "page_count":  job["page_count"],
-        "content":     job["content"],
-        "annotations": job["annotations"],
+        "tables":      safe_tables,
+        "annotations": job.get("annotations", []),
     }
 
 if __name__ == "__main__":
