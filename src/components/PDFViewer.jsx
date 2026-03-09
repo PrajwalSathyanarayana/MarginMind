@@ -140,23 +140,23 @@ const styles = {
     display: 'flex',
     flexDirection: 'row',
     width: '100%',
-    minHeight: '80vh',
+    height: 'calc(100vh - 180px)', // fills the screen minus header
     background: '#f5f5f0',
     borderRadius: '12px',
     overflow: 'hidden',
     border: '1px solid #e0ddd6',
-    marginTop: '24px',
+    marginTop: '16px',
   },
 
-  // Left margin panel — the white extension next to the PDF
+  // Left margin panel
   marginPanel: {
-    width: '260px',
-    minWidth: '260px',
+    width: '280px',
+    minWidth: '280px',
     background: '#fafaf7',
     borderRight: '1px solid #e0ddd6',
     display: 'flex',
     flexDirection: 'column',
-    padding: '0',
+    overflowY: 'auto',
   },
 
   marginHeader: {
@@ -166,6 +166,9 @@ const styles = {
     padding: '14px 16px',
     borderBottom: '1px solid #e0ddd6',
     background: '#f0efe9',
+    position: 'sticky',
+    top: 0,
+    zIndex: 1,
   },
 
   marginTitle: {
@@ -270,12 +273,13 @@ const styles = {
     display: 'inline-block',
   },
 
-  // Right PDF display area
+  // Right PDF display — takes all remaining space
   pdfPanel: {
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
     background: '#e8e6df',
+    minWidth: 0, // prevents flex overflow
   },
 
   navBar: {
@@ -286,6 +290,7 @@ const styles = {
     padding: '10px 16px',
     background: '#f0efe9',
     borderBottom: '1px solid #e0ddd6',
+    flexShrink: 0,
   },
 
   navBtn: {
@@ -304,11 +309,12 @@ const styles = {
     fontFamily: 'monospace',
   },
 
+  // iframe fills all remaining height
   iframe: {
     flex: 1,
     width: '100%',
     height: '100%',
-    minHeight: '75vh',
     border: 'none',
+    display: 'block',
   },
 }

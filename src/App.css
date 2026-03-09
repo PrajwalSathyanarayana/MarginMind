@@ -876,3 +876,10 @@
     font-size: 1.5rem;
   }
 }
+
+/* Make the app fill the full viewport width */
+.app {
+  max-width: 100%;
+  padding: 0 24px;
+  box-sizing: border-box;
+}
