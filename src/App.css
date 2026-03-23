@@ -231,19 +231,19 @@
 
 .preview-bar button {
   padding: 7px 12px;
-  background: rgba(255,255,255,0.92);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-radius: var(--r-xs);
   font-size: 0.6875rem;
   font-weight: 500;
   color: var(--text);
-  border: 1px solid rgba(0,0,0,0.06);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   transition: all var(--dur) var(--ease);
 }
 
 .preview-bar button:hover {
-  background: rgba(255,255,255,1);
+  background: rgba(255, 255, 255, 1);
 }
 
 .preview-bar button.danger {
@@ -255,7 +255,7 @@
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: rgba(0,0,0,0.85);
+  background: rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(6px);
   display: flex;
   flex-direction: column;
@@ -265,8 +265,12 @@
 }
 
 @keyframes modalIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .camera-modal video {
@@ -290,14 +294,14 @@
   height: 64px;
   border-radius: 50%;
   background: #fff;
-  border: 4px solid rgba(255,255,255,0.3);
+  border: 4px solid rgba(255, 255, 255, 0.3);
   cursor: pointer;
   transition: transform var(--dur) var(--ease);
   position: relative;
 }
 
 .camera-capture-btn::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: 4px;
   border-radius: 50%;
@@ -315,7 +319,7 @@
 
 .camera-close-btn {
   padding: 10px 20px;
-  background: rgba(255,255,255,0.15);
+  background: rgba(255, 255, 255, 0.15);
   color: #fff;
   border-radius: var(--r-sm);
   font-size: 0.8125rem;
@@ -325,11 +329,11 @@
 }
 
 .camera-close-btn:hover {
-  background: rgba(255,255,255,0.25);
+  background: rgba(255, 255, 255, 0.25);
 }
 
 .camera-error {
-  color: rgba(255,255,255,0.7);
+  color: rgba(255, 255, 255, 0.7);
   font-size: 0.8125rem;
   text-align: center;
   max-width: 300px;
@@ -356,8 +360,14 @@
 }
 
 @keyframes rubricIn {
-  from { opacity: 0; transform: translateY(-6px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .rubric-row .rubric-index {
@@ -392,7 +402,7 @@
 .rubric-row input:focus {
   border-color: var(--accent);
   background: var(--surface);
-  box-shadow: 0 0 0 3px rgba(0,0,0,0.04);
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.04);
 }
 
 .rubric-row input.name-input {
@@ -464,7 +474,9 @@
 }
 
 .parsed-text {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
   white-space: pre-wrap;
   word-break: break-word;
   background: #fff;
@@ -763,8 +775,14 @@
 }
 
 @keyframes resultsIn {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .score-hero {
@@ -809,10 +827,18 @@
   transition: stroke-dashoffset 800ms var(--ease);
 }
 
-.score-ring.excellent .ring-fill { stroke: var(--success); }
-.score-ring.good .ring-fill { stroke: var(--blue); }
-.score-ring.average .ring-fill { stroke: var(--warn); }
-.score-ring.poor .ring-fill { stroke: var(--danger); }
+.score-ring.excellent .ring-fill {
+  stroke: var(--success);
+}
+.score-ring.good .ring-fill {
+  stroke: var(--blue);
+}
+.score-ring.average .ring-fill {
+  stroke: var(--warn);
+}
+.score-ring.poor .ring-fill {
+  stroke: var(--danger);
+}
 
 .score-pct {
   font-size: 2rem;
@@ -831,10 +857,18 @@
   opacity: 0.7;
 }
 
-.score-ring.excellent { color: var(--success); }
-.score-ring.good { color: var(--blue); }
-.score-ring.average { color: var(--warn); }
-.score-ring.poor { color: var(--danger); }
+.score-ring.excellent {
+  color: var(--success);
+}
+.score-ring.good {
+  color: var(--blue);
+}
+.score-ring.average {
+  color: var(--warn);
+}
+.score-ring.poor {
+  color: var(--danger);
+}
 
 .score-summary {
   font-size: 0.8125rem;
@@ -883,9 +917,15 @@
   flex-shrink: 0;
 }
 
-.result-row.high .result-dot { background: var(--success); }
-.result-row.mid .result-dot { background: var(--warn); }
-.result-row.low .result-dot { background: var(--danger); }
+.result-row.high .result-dot {
+  background: var(--success);
+}
+.result-row.mid .result-dot {
+  background: var(--warn);
+}
+.result-row.low .result-dot {
+  background: var(--danger);
+}
 
 .result-row-name {
   font-size: 0.8125rem;
@@ -917,9 +957,15 @@
   transition: width 600ms var(--ease);
 }
 
-.result-row.high .result-bar { background: var(--success); }
-.result-row.mid .result-bar { background: var(--warn); }
-.result-row.low .result-bar { background: var(--danger); }
+.result-row.high .result-bar {
+  background: var(--success);
+}
+.result-row.mid .result-bar {
+  background: var(--warn);
+}
+.result-row.low .result-bar {
+  background: var(--danger);
+}
 
 /* Feedback */
 .feedback-box {
@@ -975,7 +1021,9 @@
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .loading-label {
