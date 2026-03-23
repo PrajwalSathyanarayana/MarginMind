@@ -62,60 +62,85 @@
 
 // export default App
 
-
-import { useState } from 'react'
-import './App.css'
-import PDFUpload from './components/ImageUpload'
-import PDFViewer from './components/PDFViewer'
+import { useEffect, useState } from "react";
+import "./App.css";
+import PDFUpload from "./components/ImageUpload";
+import PDFViewer from "./components/PDFViewer";
+import ParsedContent from "./components/ParsedContent";
 
 function App() {
   // pdfFile     — the raw File object, used by PDFViewer to display the PDF
   // jobResult   — the response from backend: job_id, page_count, table_count
   // annotations — feedback items from /feedback endpoint
-  const [pdfFile, setPdfFile] = useState(null)
-  const [jobResult, setJobResult] = useState(null)
-  const [annotations, setAnnotations] = useState([])
-  const [loadingFeedback, setLoadingFeedback] = useState(false)
+  const [pdfFile, setPdfFile] = useState(null);
+  const [jobResult, setJobResult] = useState(null);
+  const [annotations, setAnnotations] = useState([]);
+  const [parsedContent, setParsedContent] = useState({
+    pages: [],
+    tables: [],
+    figures: [],
+  });
+  const [loadingFeedback, setLoadingFeedback] = useState(false);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
 
   // Called by PDFUpload when backend /upload responds successfully
   const handleUploadComplete = async (file, result) => {
-    setPdfFile(file)
-    setJobResult(result)
+    setPdfFile(file);
+    setJobResult(result);
 
     // Fetch the full feedback using the job_id returned from /upload
     try {
-      setLoadingFeedback(true)
-      const response = await fetch(`http://127.0.0.1:8000/feedback/${result.job_id}`)
-      const feedbackData = await response.json()
-      setAnnotations(feedbackData.annotations || [])
+      setLoadingFeedback(true);
+      const response = await fetch(
+        `http://127.0.0.1:8000/feedback/${result.job_id}`,
+      );
+      const feedbackData = await response.json();
+      setAnnotations(feedbackData.annotations || []);
+      setParsedContent({
+        pages: feedbackData.pages || [],
+        tables: feedbackData.tables || [],
+        figures: feedbackData.figures || [],
+      });
     } catch (err) {
-      console.error('Failed to fetch feedback:', err)
-      setAnnotations([])
+      console.error("Failed to fetch feedback:", err);
+      setAnnotations([]);
+      setParsedContent({ pages: [], tables: [], figures: [] });
     } finally {
-      setLoadingFeedback(false)
+      setLoadingFeedback(false);
     }
-  }
+  };
 
   // Reset everything back to upload screen
   const handleReset = () => {
-    setPdfFile(null)
-    setJobResult(null)
-    setAnnotations([])
-  }
+    setPdfFile(null);
+    setJobResult(null);
+    setAnnotations([]);
+    setParsedContent({ pages: [], tables: [], figures: [] });
+  };
+
+  const isPdfUpload = pdfFile?.type === "application/pdf";
+
+  useEffect(() => {
+    if (!pdfFile || isPdfUpload) {
+      setImagePreviewUrl(null);
+      return;
+    }
+
+    const url = URL.createObjectURL(pdfFile);
+    setImagePreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [pdfFile, isPdfUpload]);
 
   return (
     <div className="app">
-
       {/* ── HEADER ────────────────────────────────────────────── */}
       <header className="app-header">
         <h1>MarginMind</h1>
-        <p>Upload a student assignment to get anchored feedback.</p>
+        {/* <p>Upload a student assignment to get anchored feedback.</p> */}
       </header>
 
       {/* ── UPLOAD SCREEN ─────────────────────────────────────── */}
-      {!pdfFile && (
-        <PDFUpload onUploadComplete={handleUploadComplete} />
-      )}
+      {!pdfFile && <PDFUpload onUploadComplete={handleUploadComplete} />}
 
       {/* ── LOADING FEEDBACK ──────────────────────────────────── */}
       {pdfFile && loadingFeedback && (
@@ -131,35 +156,39 @@ function App() {
       {pdfFile && !loadingFeedback && (
         <>
           {/* Info bar showing upload result */}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '10px 16px',
-            background: '#f0efe9',
-            border: '1px solid #e0ddd6',
-            borderRadius: '8px',
-            marginTop: '16px',
-          }}>
-            <div style={{ fontSize: '0.85rem', color: '#3d3b30' }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "10px 16px",
+              background: "#f0efe9",
+              border: "1px solid #e0ddd6",
+              borderRadius: "8px",
+              marginTop: "16px",
+            }}
+          >
+            <div style={{ fontSize: "0.85rem", color: "#3d3b30" }}>
               <strong>{jobResult?.filename}</strong>
-              <span style={{ color: '#9a9888', marginLeft: '12px' }}>
-                {jobResult?.page_count} page{jobResult?.page_count !== 1 ? 's' : ''}
+              <span style={{ color: "#9a9888", marginLeft: "12px" }}>
+                {jobResult?.page_count} page
+                {jobResult?.page_count !== 1 ? "s" : ""}
                 {jobResult?.table_count > 0 &&
-                  ` · ${jobResult.table_count} table${jobResult.table_count !== 1 ? 's' : ''} detected`
-                }
+                  ` · ${jobResult.table_count} table${jobResult.table_count !== 1 ? "s" : ""} detected`}
+                {jobResult?.figure_count > 0 &&
+                  ` · ${jobResult.figure_count} figure${jobResult.figure_count !== 1 ? "s" : ""} detected`}
               </span>
             </div>
             <button
               onClick={handleReset}
               style={{
-                background: 'none',
-                border: '1px solid #d0cec6',
-                borderRadius: '6px',
-                padding: '5px 12px',
-                fontSize: '0.8rem',
-                cursor: 'pointer',
-                color: '#6b6960',
+                background: "none",
+                border: "1px solid #d0cec6",
+                borderRadius: "6px",
+                padding: "5px 12px",
+                fontSize: "0.8rem",
+                cursor: "pointer",
+                color: "#6b6960",
               }}
             >
               ← Upload Another
@@ -167,15 +196,29 @@ function App() {
           </div>
 
           {/* PDF viewer with left margin panel */}
-          <PDFViewer
-            pdfFile={pdfFile}
-            annotations={annotations}
-          />
+          {isPdfUpload ? (
+            <PDFViewer pdfFile={pdfFile} annotations={annotations} />
+          ) : (
+            <div className="section image-preview-section">
+              <div className="section-header">
+                <h2 className="section-title">Image Preview</h2>
+                <p className="section-desc">
+                  Uploaded image used for parsing pipeline
+                </p>
+              </div>
+              <img
+                src={imagePreviewUrl || ""}
+                alt="Uploaded document"
+                className="uploaded-image-preview"
+              />
+            </div>
+          )}
+
+          <ParsedContent parsed={parsedContent} />
         </>
       )}
-
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

@@ -49,7 +49,7 @@ async def upload_pdf(file: UploadFile = File(...)):
     #     page_count = len(doc)
     #     doc.close()
         
-    result = process_diagrams(content, job_id, file.filename)
+    result = process_diagrams(content, job_id, file.filename, file.content_type or "")
         # Save result to job store so /status and /feedback can retrieve it
     job_store[job_id] = result
         
@@ -57,8 +57,10 @@ async def upload_pdf(file: UploadFile = File(...)):
             "job_id":   job_id,      
             "status": "done",
             "filename": file.filename,
+            "document_type": result.get("document_type", "pdf"),
             "page_count": result["page_count"],
             "table_count": result["table_count"], 
+            "figure_count": result.get("figure_count", 0),
         }
     
     # finally:
@@ -98,8 +100,11 @@ async def get_feedback(job_id: str):
     return {
         "job_id":      job_id,
         "filename":    job["filename"],
+        "document_type": job.get("document_type", "pdf"),
         "page_count":  job["page_count"],
         "tables":      safe_tables,
+        "pages":       job.get("pages", []),
+        "figures":     job.get("figures", []),
         "annotations": job.get("annotations", []),
     }
 

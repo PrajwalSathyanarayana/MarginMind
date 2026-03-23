@@ -3,6 +3,27 @@
 .env.production
 
 env/
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.hypothesis/
+
+.coverage
+.coverage.*
+htmlcov/
+
+build/
+site/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
 
 logs
 *.log
@@ -26,3 +47,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Misc
+*.pid
+*.seed
+*.out
+

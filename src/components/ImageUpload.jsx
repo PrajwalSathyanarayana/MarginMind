@@ -166,66 +166,64 @@
 //   )
 // }
 
+import { useRef, useState } from "react";
 
-import { useRef, useState } from 'react'
-
-// Accepts a PDF file, sends it to the backend /upload endpoint,
-// and returns the job result (job_id + annotations) to the parent
+// Accepts a PDF or image file, sends it to the backend /upload endpoint,
+// and returns the job result to the parent.
 export default function PDFUpload({ onUploadComplete }) {
-  const fileRef = useRef(null)
-  const [dragover, setDragover] = useState(false)
-  const [uploading, setUploading] = useState(false)
-  const [error, setError] = useState(null)
+  const fileRef = useRef(null);
+  const [dragover, setDragover] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState(null);
 
   const handleFile = async (file) => {
-    // Validate that the file is a PDF
-    if (!file || file.type !== 'application/pdf') {
-      setError('Please upload a PDF file.')
-      return
+    const isPdf = file?.type === "application/pdf";
+    const isImage = file?.type?.startsWith("image/");
+    if (!file || (!isPdf && !isImage)) {
+      setError("Please upload a PDF or image file.");
+      return;
     }
 
-    setError(null)
-    setUploading(true)
+    setError(null);
+    setUploading(true);
 
     try {
-      // Build a multipart form request — same format as Swagger "Try it out"
-      const formData = new FormData()
-      formData.append('file', file)
+      // Build multipart form request.
+      const formData = new FormData();
+      formData.append("file", file);
 
-      // Send to backend /upload endpoint
-      const response = await fetch('http://127.0.0.1:8000/upload', {
-        method: 'POST',
+      // Send to backend /upload endpoint.
+      const response = await fetch("http://127.0.0.1:8000/upload", {
+        method: "POST",
         body: formData,
-      })
+      });
 
       if (!response.ok) {
-        throw new Error(`Server error: ${response.status}`)
+        throw new Error(`Server error: ${response.status}`);
       }
 
-      const result = await response.json()
+      const result = await response.json();
 
-      // Pass the file object + backend result up to App.jsx
-      // file object is needed to display the PDF locally in the viewer
-      onUploadComplete(file, result)
-
+      // Pass file object + backend result up to App.jsx.
+      onUploadComplete(file, result);
     } catch (err) {
-      setError(`Upload failed: ${err.message}`)
+      setError(`Upload failed: ${err.message}`);
     } finally {
-      setUploading(false)
+      setUploading(false);
     }
-  }
+  };
 
   const handleInputChange = (e) => {
-    const file = e.target.files?.[0]
-    if (file) handleFile(file)
-  }
+    const file = e.target.files?.[0];
+    if (file) handleFile(file);
+  };
 
   const handleDrop = (e) => {
-    e.preventDefault()
-    setDragover(false)
-    const file = e.dataTransfer.files?.[0]
-    if (file) handleFile(file)
-  }
+    e.preventDefault();
+    setDragover(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFile(file);
+  };
 
   return (
     <div className="section">
@@ -238,16 +236,19 @@ export default function PDFUpload({ onUploadComplete }) {
       <input
         ref={fileRef}
         type="file"
-        accept="application/pdf"
+        accept="application/pdf,image/*"
         onChange={handleInputChange}
-        style={{ display: 'none' }}
+        style={{ display: "none" }}
       />
 
       {/* Drop zone */}
       <div
-        className={`upload-zone${dragover ? ' dragover' : ''}`}
+        className={`upload-zone${dragover ? " dragover" : ""}`}
         onClick={() => fileRef.current?.click()}
-        onDragOver={(e) => { e.preventDefault(); setDragover(true) }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragover(true);
+        }}
         onDragLeave={() => setDragover(false)}
         onDrop={handleDrop}
       >
@@ -261,20 +262,32 @@ export default function PDFUpload({ onUploadComplete }) {
           // Default idle state
           <>
             <div className="upload-icon-wrap">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
                 <polyline points="17 8 12 3 7 8" />
                 <line x1="12" y1="3" x2="12" y2="15" />
               </svg>
             </div>
-            <div className="upload-label">Drop PDF here or click to browse</div>
-            <div className="upload-sublabel">Supports PDF only</div>
+            <div className="upload-label">
+              Drop PDF/image here or click to browse
+            </div>
+            <div className="upload-sublabel">
+              Supports PDF, JPG, PNG, WEBP, HEIC
+            </div>
             <div className="upload-btns">
               <button
                 className="btn btn-dark"
-                onClick={(e) => { e.stopPropagation(); fileRef.current?.click() }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  fileRef.current?.click();
+                }}
               >
-                Upload PDF
+                Upload Document
               </button>
             </div>
           </>
@@ -283,18 +296,20 @@ export default function PDFUpload({ onUploadComplete }) {
 
       {/* Error message */}
       {error && (
-        <div style={{
-          marginTop: '12px',
-          padding: '10px 14px',
-          background: '#3b1a1a',
-          border: '1px solid #7f1d1d',
-          borderRadius: '6px',
-          color: '#f87171',
-          fontSize: '0.85rem'
-        }}>
+        <div
+          style={{
+            marginTop: "12px",
+            padding: "10px 14px",
+            background: "#3b1a1a",
+            border: "1px solid #7f1d1d",
+            borderRadius: "6px",
+            color: "#f87171",
+            fontSize: "0.85rem",
+          }}
+        >
           {error}
         </div>
       )}
     </div>
-  )
+  );
 }
