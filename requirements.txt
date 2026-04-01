@@ -12,3 +12,8 @@ python-dotenv
 google-cloud-storage
 google-cloud-firestore
 google-cloud-tasks
+google.generativeai
+rapidfuzz
+langgraph
+langchain-google-genai
+langchain-core

@@ -4,6 +4,7 @@ import tempfile
 from pathlib import Path
 import fitz
 import uuid # henerate unique job ID 
+from Modal.text import process as process_text
 from Modal.diagrams_tables import process as process_diagrams
 
 app = FastAPI()
@@ -107,6 +108,46 @@ async def get_feedback(job_id: str):
         "figures":     job.get("figures", []),
         "annotations": job.get("annotations", []),
     }
+
+@app.post("/text")
+async def upload_text_qa(
+    questionnaire: UploadFile = File(...),
+    submission: UploadFile = File(...)
+):
+    """
+    Text-based Q&A evaluation endpoint.
+    
+    Expects:
+    - questionnaire: PDF with questions
+    - submission: PDF with student answers
+    
+    Returns:
+    - Full evaluation results with feedback and bboxes
+    """
+    
+    job_id = str(uuid.uuid4())
+    
+    # Read file contents
+    questionnaire_content = await questionnaire.read()
+    submission_content = await submission.read()
+    
+    # Process with text module
+    result = process_text(
+        questionnaire_content=questionnaire_content,
+        submission_content=submission_content,
+        job_id=job_id,
+        questionnaire_filename=questionnaire.filename,
+        submission_filename=submission.filename
+    )
+    
+    # Store result
+    job_store[job_id] = result
+    
+    # Return FULL result including evaluations
+    return result
+
+
+
 
 if __name__ == "__main__":
     import uvicorn
