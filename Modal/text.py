@@ -98,53 +98,188 @@ def extract_questions_simple(pdf_path: str) -> List[Dict[str, Any]]:
     ]
 
 
+# def extract_full_text(pdf_path: str) -> str:
+#     """Extract all text from submission - no segmentation."""
+#     doc = fitz.open(pdf_path)
+#     full_text = "".join([page.get_text() for page in doc])
+#     doc.close()
+#     return full_text
 def extract_full_text(pdf_path: str) -> str:
-    """Extract all text from submission - no segmentation."""
-    doc = fitz.open(pdf_path)
-    full_text = "".join([page.get_text() for page in doc])
-    doc.close()
-    return full_text
+    """
+    Extract all text from submission using pdfplumber.
+    Falls back to OCR via Tesseract if a page has no selectable text
+    (handles scanned PDFs and handwritten submissions).
+    Uses Vaishnav's extraction approach from diagrams_tables.py
+    """
+    import pdfplumber
+    from Modal.diagrams_tables import (
+        _safe_ocr_text_from_pdf_page,
+        TESSERACT_AVAILABLE
+    )
+
+    full_text = ""
+
+    with pdfplumber.open(pdf_path) as pdf:
+        doc = fitz.open(pdf_path)
+        try:
+            for i, page in enumerate(pdf.pages):
+                # Primary: pdfplumber text extraction
+                text = page.extract_text() or ""
+
+                # Fallback: OCR if page has no selectable text
+                # This handles scanned PDFs and handwritten submissions
+                if not text.strip() and TESSERACT_AVAILABLE:
+                    fitz_page = doc[i]
+                    text = _safe_ocr_text_from_pdf_page(fitz_page)
+
+                full_text += text + "\n"
+        finally:
+            doc.close()
+
+    return full_text.strip()
 
 
-def extract_all_words_with_bboxes(pdf_path: str) -> List[Dict[str, Any]]:
-    """
-    Extract EVERY word in PDF with bbox.
-    This is the key - we get positions for entire document,
-    then search for phrases later.
-    """
-    doc = fitz.open(pdf_path)
-    all_words = []
+# def extract_all_words_with_bboxes(pdf_path: str) -> List[Dict[str, Any]]:
+#     """
+#     Extract EVERY word in PDF with bbox.
+#     This is the key - we get positions for entire document,
+#     then search for phrases later.
+#     """
+#     doc = fitz.open(pdf_path)
+#     all_words = []
     
-    for page_num in range(len(doc)):
-        page = doc[page_num]
-        blocks = page.get_text("dict")["blocks"]
+#     for page_num in range(len(doc)):
+#         page = doc[page_num]
+#         blocks = page.get_text("dict")["blocks"]
         
-        for block in blocks:
-            if block["type"] != 0:  # Skip non-text
-                continue
+#         for block in blocks:
+#             if block["type"] != 0:  # Skip non-text
+#                 continue
             
-            for line in block["lines"]:
-                for span in line["spans"]:
-                    span_text = span["text"]
-                    bbox = span["bbox"]
+#             for line in block["lines"]:
+#                 for span in line["spans"]:
+#                     span_text = span["text"]
+#                     bbox = span["bbox"]
                     
-                    span_words = span_text.split()
-                    word_width = (bbox[2] - bbox[0]) / max(len(span_words), 1)
+#                     span_words = span_text.split()
+#                     word_width = (bbox[2] - bbox[0]) / max(len(span_words), 1)
                     
-                    for i, word in enumerate(span_words):
-                        if word.strip():
-                            all_words.append({
-                                "text": word,
-                                "bbox": {
-                                    "x0": round(bbox[0] + i * word_width, 2),
-                                    "y0": round(bbox[1], 2),
-                                    "x1": round(bbox[0] + (i + 1) * word_width, 2),
-                                    "y1": round(bbox[3], 2)
-                                },
-                                "page": page_num + 1
-                            })
+#                     for i, word in enumerate(span_words):
+#                         if word.strip():
+#                             all_words.append({
+#                                 "text": word,
+#                                 "bbox": {
+#                                     "x0": round(bbox[0] + i * word_width, 2),
+#                                     "y0": round(bbox[1], 2),
+#                                     "x1": round(bbox[0] + (i + 1) * word_width, 2),
+#                                     "y1": round(bbox[3], 2)
+#                                 },
+#                                 "page": page_num + 1
+#                             })
     
-    doc.close()
+#     doc.close()
+#     return all_words
+
+def extract_all_words_with_bboxes(pdf_path: str) -> list:
+    """
+    Extract every word with its bounding box using pdfplumber.
+    Falls back to OCR word boxes via Tesseract for scanned pages.
+    Uses Vaishnav's extraction approach from diagrams_tables.py.
+
+    Returns list of:
+    {
+        "text": "word",
+        "bbox": { "x0": 0.12, "y0": 0.34, "x1": 0.18, "y1": 0.38 },
+        "page": 1
+    }
+    Coordinates are normalized to 0-1 range (fraction of page dimensions)
+    so highlights render correctly at any screen size or zoom level.
+    """
+    import pdfplumber
+    from Modal.diagrams_tables import (
+        _safe_ocr_text_from_pdf_page,
+        _image_to_ocr_boxes,
+        _pixmap_png_bytes,
+        TESSERACT_AVAILABLE
+    )
+    import io
+
+    all_words = []
+
+    with pdfplumber.open(pdf_path) as pdf:
+        doc = fitz.open(pdf_path)
+        try:
+            for i, page in enumerate(pdf.pages):
+                page_num = i + 1
+                page_width  = float(page.width)
+                page_height = float(page.height)
+
+                # Primary: pdfplumber word extraction with normalized bboxes
+                plumber_words = page.extract_words()
+
+                if plumber_words:
+                    for w in plumber_words:
+                        all_words.append({
+                            "text": w["text"],
+                            "bbox": {
+                                "x0": round(w["x0"]    / page_width,  4),
+                                "y0": round(w["top"]    / page_height, 4),
+                                "x1": round(w["x1"]     / page_width,  4),
+                                "y1": round(w["bottom"] / page_height, 4),
+                            },
+                            "page": page_num
+                        })
+
+                else:
+                    # Fallback: OCR word boxes for scanned/handwritten pages
+                    # This is Vaishnav's Tesseract integration
+                    if TESSERACT_AVAILABLE:
+                        try:
+                            import pytesseract
+                            from PIL import Image
+                            fitz_page = doc[i]
+                            png_bytes = _pixmap_png_bytes(fitz_page, zoom=2.0)
+                            pil_image = Image.open(io.BytesIO(png_bytes)).convert("RGB")
+
+                            data = pytesseract.image_to_data(
+                                pil_image,
+                                output_type=pytesseract.Output.DICT,
+                                config="--oem 3 --psm 6",
+                            )
+
+                            n = len(data.get("text", []))
+                            # Image was rendered at zoom=2.0 so divide coords by 2
+                            # then normalize to page dimensions
+                            zoom = 2.0
+                            for j in range(n):
+                                text = (data["text"][j] or "").strip()
+                                try:
+                                    conf = float(data["conf"][j])
+                                except Exception:
+                                    conf = -1.0
+                                if not text or conf < 35:
+                                    continue
+
+                                x  = int(data["left"][j])   / zoom
+                                y  = int(data["top"][j])    / zoom
+                                w  = int(data["width"][j])  / zoom
+                                h  = int(data["height"][j]) / zoom
+
+                                all_words.append({
+                                    "text": text,
+                                    "bbox": {
+                                        "x0": round(x           / page_width,  4),
+                                        "y0": round(y           / page_height, 4),
+                                        "x1": round((x + w)     / page_width,  4),
+                                        "y1": round((y + h)     / page_height, 4),
+                                    },
+                                    "page": page_num
+                                })
+                        except Exception:
+                            pass  # OCR failed — words list stays empty for this page
+        finally:
+            doc.close()
+
     return all_words
 
 
