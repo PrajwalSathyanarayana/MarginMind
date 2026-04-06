@@ -3,31 +3,21 @@ import "./App.css";
 import PDFViewer from "./components/PDFViewer";
 import ParsedContent from "./components/ParsedContent";
 
-// ── Simple file drop zone (no auto-upload) ─────────────────────────────────
+// ── File drop zone component ───────────────────────────────────────────────
 function FileDropZone({ label, desc, file, onFile, accept = "application/pdf" }) {
   const [dragover, setDragover] = useState(false);
-  const inputRef = useState(null);
   const ref = { current: null };
 
-  const handleFile = (f) => {
-    if (!f) return;
-    onFile(f);
-  };
+  const handleFile = (f) => { if (!f) return; onFile(f); };
 
   return (
     <div style={{ flex: 1, minWidth: 0 }}>
-      <div style={{
-        fontWeight: "700", fontSize: "0.9rem",
-        color: "#1a1a2e", marginBottom: "4px"
-      }}>
+      <div style={{ fontWeight: "700", fontSize: "0.9rem", color: "#1a1a2e", marginBottom: "4px" }}>
         {label}
       </div>
-      <div style={{
-        fontSize: "0.78rem", color: "#9a9888", marginBottom: "10px"
-      }}>
+      <div style={{ fontSize: "0.78rem", color: "#9a9888", marginBottom: "10px" }}>
         {desc}
       </div>
-
       <input
         ref={(el) => (ref.current = el)}
         type="file"
@@ -35,23 +25,16 @@ function FileDropZone({ label, desc, file, onFile, accept = "application/pdf" })
         style={{ display: "none" }}
         onChange={(e) => handleFile(e.target.files?.[0])}
       />
-
       {!file ? (
         <div
           onClick={() => ref.current?.click()}
           onDragOver={(e) => { e.preventDefault(); setDragover(true); }}
           onDragLeave={() => setDragover(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDragover(false);
-            handleFile(e.dataTransfer.files?.[0]);
-          }}
+          onDrop={(e) => { e.preventDefault(); setDragover(false); handleFile(e.dataTransfer.files?.[0]); }}
           style={{
             border: `2px dashed ${dragover ? "#7c5cfc" : "#d0cec6"}`,
-            borderRadius: "10px",
-            padding: "32px 20px",
-            textAlign: "center",
-            cursor: "pointer",
+            borderRadius: "10px", padding: "32px 20px",
+            textAlign: "center", cursor: "pointer",
             background: dragover ? "#f5f3ff" : "#fafaf7",
             transition: "all 0.2s",
           }}
@@ -80,10 +63,7 @@ function FileDropZone({ label, desc, file, onFile, accept = "application/pdf" })
           justifyContent: "space-between", gap: "12px",
         }}>
           <div>
-            <div style={{
-              fontSize: "0.85rem", fontWeight: "600",
-              color: "#166534", marginBottom: "2px"
-            }}>
+            <div style={{ fontSize: "0.85rem", fontWeight: "600", color: "#166534", marginBottom: "2px" }}>
               ✓ {file.name}
             </div>
             <div style={{ fontSize: "0.72rem", color: "#9a9888" }}>
@@ -91,7 +71,7 @@ function FileDropZone({ label, desc, file, onFile, accept = "application/pdf" })
             </div>
           </div>
           <button
-            onClick={() => { onFile(null); }}
+            onClick={() => onFile(null)}
             style={{
               background: "none", border: "1px solid #d0cec6",
               borderRadius: "6px", padding: "4px 10px",
@@ -108,14 +88,14 @@ function FileDropZone({ label, desc, file, onFile, accept = "application/pdf" })
 
 // ── Score badge ────────────────────────────────────────────────────────────
 function ScoreBadge({ score }) {
-  const pct = Math.round(score * 100);
+  const pct   = Math.round(score * 100);
   const color = pct >= 70 ? "#166534" : pct >= 40 ? "#92400e" : "#991b1b";
   const bg    = pct >= 70 ? "#dcfce7" : pct >= 40 ? "#fef9c3" : "#fee2e2";
   return (
     <span style={{
       fontFamily: "monospace", fontSize: "0.85rem", fontWeight: "700",
       color, background: bg, padding: "3px 10px",
-      borderRadius: "99px", border: `1px solid ${color}33`
+      borderRadius: "99px", border: `1px solid ${color}33`,
     }}>
       {pct}%
     </span>
@@ -124,25 +104,53 @@ function ScoreBadge({ score }) {
 
 // ── Main App ───────────────────────────────────────────────────────────────
 export default function App() {
+
+  // ── State ────────────────────────────────────────────────────────────────
   const [questionnaireFile, setQuestionnaireFile] = useState(null);
   const [submissionFile,    setSubmissionFile]    = useState(null);
   const [loading,           setLoading]           = useState(false);
   const [error,             setError]             = useState(null);
 
-  // Results
-  const [mode,         setMode]         = useState(null); // "qa" | "single"
-  const [jobResult,    setJobResult]    = useState(null);
-  const [evaluations,  setEvaluations]  = useState([]);
-  const [annotations,  setAnnotations]  = useState([]);
-  const [parsedContent, setParsedContent] = useState({ pages: [], tables: [], figures: [] });
-  const [pdfFile,      setPdfFile]      = useState(null);
+  const [mode,            setMode]            = useState(null);
+  const [jobResult,       setJobResult]       = useState(null);
+  const [evaluations,     setEvaluations]     = useState([]);
+  const [annotations,     setAnnotations]     = useState([]);
+  const [parsedContent,   setParsedContent]   = useState({ pages: [], tables: [], figures: [] });
+  const [pdfFile,         setPdfFile]         = useState(null);
+  const [detectionResult, setDetectionResult] = useState(null);  // ← inside App ✅
 
   const canEvaluate = questionnaireFile && submissionFile && !loading;
-  const canAnalyze  = submissionFile && !questionnaireFile && !loading;
 
-  // ── Q&A Evaluation — calls /text with both PDFs ────────────────────
+  // ── Run evaluation using same file for both Q and A ───────────────────────
+  const runSelfContainedEvaluation = async (uploadResult) => {  // ← inside App ✅
+    setMode("qa");
+    setLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append("questionnaire", submissionFile);
+      formData.append("submission",    submissionFile);
+
+      const res = await fetch("http://127.0.0.1:8000/text", {
+        method: "POST",
+        body:   formData,
+      });
+
+      if (!res.ok) throw new Error(`Server error: ${res.status}`);
+      const result = await res.json();
+      setJobResult(result);
+      setEvaluations(result.evaluations || []);
+
+    } catch (err) {
+      setError(`Evaluation failed: ${err.message}`);
+      setMode(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── Q&A Evaluation with separate question paper ───────────────────────────
   const handleEvaluate = async () => {
-    if (!canEvaluate) return;
+    if (!questionnaireFile || !submissionFile) return;
     setError(null);
     setLoading(true);
     setMode("qa");
@@ -170,12 +178,11 @@ export default function App() {
     }
   };
 
-  // ── Single analysis — calls /upload then /feedback ─────────────────
+  // ── Analyze submission only — with auto question detection ────────────────
   const handleAnalyze = async () => {
-    if (!canAnalyze) return;
+    if (!submissionFile) return;
     setError(null);
     setLoading(true);
-    setMode("single");
     setPdfFile(submissionFile);
 
     try {
@@ -188,28 +195,44 @@ export default function App() {
       });
 
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
-      const result = await res.json();
-      setJobResult(result);
+      const result   = await res.json();
+      const detection = result.question_detection || {};
 
-      // Fetch full feedback
-      const fbRes = await fetch(`http://127.0.0.1:8000/feedback/${result.job_id}`);
-      const fbData = await fbRes.json();
-      setAnnotations(fbData.annotations || []);
-      setParsedContent({
-        pages:   fbData.pages   || [],
-        tables:  fbData.tables  || [],
-        figures: fbData.figures || [],
-      });
+      if (
+        detection.has_questions &&
+        detection.verdict === "self_contained" &&
+        detection.confidence > 0.8
+      ) {
+        // Self-contained — evaluate directly
+        setJobResult(result);
+        await runSelfContainedEvaluation(result);
+
+      } else if (
+        !detection.has_questions &&
+        detection.verdict === "answers_only" &&
+        detection.confidence > 0.8
+      ) {
+        // Clearly answers only — prompt for questionnaire
+        setJobResult(result);
+        setMode("needs_questionnaire");
+
+      } else {
+        // Uncertain — ask user
+        setJobResult(result);
+        setDetectionResult(detection);
+        setMode("uncertain");
+      }
 
     } catch (err) {
       setError(`Analysis failed: ${err.message}`);
+      setPdfFile(null);
       setMode(null);
     } finally {
       setLoading(false);
     }
   };
 
-  // ── Reset ──────────────────────────────────────────────────────────
+  // ── Reset ─────────────────────────────────────────────────────────────────
   const handleReset = () => {
     setQuestionnaireFile(null);
     setSubmissionFile(null);
@@ -221,18 +244,20 @@ export default function App() {
     setAnnotations([]);
     setParsedContent({ pages: [], tables: [], figures: [] });
     setPdfFile(null);
+    setDetectionResult(null);
   };
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="app">
 
-      {/* ── HEADER ──────────────────────────────────────────────────── */}
+      {/* HEADER */}
       <header className="app-header">
         <h1>MarginMind</h1>
         <p>Upload assignments to get AI-powered feedback.</p>
       </header>
 
-      {/* ── UPLOAD SECTION ──────────────────────────────────────────── */}
+      {/* UPLOAD SECTION — hide once results are ready */}
       {!jobResult && !loading && (
         <div className="section">
           <div className="section-header">
@@ -242,11 +267,10 @@ export default function App() {
             </p>
           </div>
 
-          {/* Side by side upload zones */}
           <div style={{ display: "flex", gap: "20px", marginTop: "16px" }}>
             <FileDropZone
               label="📋 Question Paper"
-              desc="Upload the question paper PDF"
+              desc="Upload the question paper PDF (optional)"
               file={questionnaireFile}
               onFile={setQuestionnaireFile}
             />
@@ -258,16 +282,12 @@ export default function App() {
             />
           </div>
 
-          {/* Action buttons */}
           <div style={{ marginTop: "20px", display: "flex", gap: "12px" }}>
-
-            {/* Q&A Evaluation button */}
             <button
               onClick={handleEvaluate}
               disabled={!canEvaluate}
               style={{
-                flex: 1,
-                padding: "12px 24px",
+                flex: 1, padding: "12px 24px",
                 background: canEvaluate ? "#1a1a2e" : "#e8e6de",
                 color: canEvaluate ? "#fff" : "#9a9888",
                 border: "none", borderRadius: "8px",
@@ -285,19 +305,14 @@ export default function App() {
                     : "Upload both files to evaluate"}
             </button>
 
-            {/* Single analysis button — only when submission uploaded but no questionnaire */}
             {submissionFile && !questionnaireFile && (
               <button
                 onClick={handleAnalyze}
                 style={{
-                  padding: "12px 20px",
-                  background: "none",
-                  color: "#5b21b6",
-                  border: "1px solid #a78bfa",
-                  borderRadius: "8px",
-                  fontSize: "0.85rem",
-                  fontWeight: "600",
-                  cursor: "pointer",
+                  padding: "12px 20px", background: "none",
+                  color: "#5b21b6", border: "1px solid #a78bfa",
+                  borderRadius: "8px", fontSize: "0.85rem",
+                  fontWeight: "600", cursor: "pointer",
                 }}
               >
                 Analyze Document Only
@@ -305,7 +320,6 @@ export default function App() {
             )}
           </div>
 
-          {/* Error */}
           {error && (
             <div style={{
               marginTop: "12px", padding: "10px 14px",
@@ -318,7 +332,7 @@ export default function App() {
         </div>
       )}
 
-      {/* ── LOADING ─────────────────────────────────────────────────── */}
+      {/* LOADING */}
       {loading && (
         <div className="section">
           <div className="loading-wrap">
@@ -326,13 +340,13 @@ export default function App() {
             <div className="loading-label">
               {mode === "qa"
                 ? "Running Q&A evaluation with Gemini…"
-                : "Analyzing document…"}
+                : "Analyzing document and detecting questions…"}
             </div>
           </div>
         </div>
       )}
 
-      {/* ── RESULTS ─────────────────────────────────────────────────── */}
+      {/* RESULTS */}
       {jobResult && !loading && (
         <>
           {/* Info bar */}
@@ -346,12 +360,8 @@ export default function App() {
               {mode === "qa" ? (
                 <>
                   <strong>{jobResult.submission_filename}</strong>
-                  <span style={{ color: "#9a9888", marginLeft: "8px" }}>
-                    vs
-                  </span>
-                  <strong style={{ marginLeft: "8px" }}>
-                    {jobResult.questionnaire_filename}
-                  </strong>
+                  <span style={{ color: "#9a9888", marginLeft: "8px" }}>vs</span>
+                  <strong style={{ marginLeft: "8px" }}>{jobResult.questionnaire_filename}</strong>
                   <span style={{ color: "#9a9888", marginLeft: "12px" }}>
                     {jobResult.question_count} questions evaluated
                     {jobResult.needs_review_count > 0 &&
@@ -380,25 +390,103 @@ export default function App() {
             </button>
           </div>
 
-          {/* ── Q&A RESULTS ─────────────────────────────────────────── */}
+          {/* UNCERTAIN DETECTION */}
+          {mode === "uncertain" && detectionResult && (
+            <div style={{
+              marginTop: "16px", padding: "20px 24px",
+              background: "#fffbeb", border: "1px solid #fde68a",
+              borderRadius: "10px",
+            }}>
+              <div style={{ fontWeight: "700", fontSize: "0.95rem", color: "#92400e", marginBottom: "8px" }}>
+                ⚡ We're not sure about this document
+              </div>
+              <p style={{ fontSize: "0.85rem", color: "#78350f", marginBottom: "4px", lineHeight: "1.6" }}>
+                {detectionResult.reasoning}
+              </p>
+              <p style={{ fontSize: "0.78rem", color: "#92400e", marginBottom: "16px", fontFamily: "monospace" }}>
+                Confidence: {Math.round((detectionResult.confidence || 0) * 100)}%
+                &nbsp;·&nbsp;
+                Verdict: {detectionResult.verdict}
+              </p>
+              <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                <button
+                  onClick={() => runSelfContainedEvaluation(jobResult)}
+                  style={{
+                    padding: "10px 20px", background: "#1a1a2e",
+                    color: "#fff", border: "none", borderRadius: "8px",
+                    fontSize: "0.85rem", fontWeight: "600", cursor: "pointer",
+                  }}
+                >
+                  ✓ Evaluate without question paper
+                </button>
+                <button
+                  onClick={() => setMode("needs_questionnaire")}
+                  style={{
+                    padding: "10px 20px", background: "none",
+                    color: "#92400e", border: "1px solid #fcd34d",
+                    borderRadius: "8px", fontSize: "0.85rem",
+                    fontWeight: "600", cursor: "pointer",
+                  }}
+                >
+                  📋 Upload question paper instead
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* NEEDS QUESTIONNAIRE */}
+          {mode === "needs_questionnaire" && (
+            <div style={{
+              marginTop: "16px", padding: "20px 24px",
+              background: "#f5f3ff", border: "1px solid #a78bfa",
+              borderRadius: "10px",
+            }}>
+              <div style={{ fontWeight: "700", fontSize: "0.95rem", color: "#5b21b6", marginBottom: "8px" }}>
+                📋 Question paper needed
+              </div>
+              <p style={{ fontSize: "0.85rem", color: "#6d28d9", marginBottom: "16px", lineHeight: "1.6" }}>
+                This submission appears to contain only answers.
+                Upload the question paper to run a full Q&A evaluation.
+              </p>
+              <div style={{ maxWidth: "400px" }}>
+                <FileDropZone
+                  label="Question Paper"
+                  desc="Upload the question paper PDF"
+                  file={questionnaireFile}
+                  onFile={setQuestionnaireFile}
+                />
+              </div>
+              {questionnaireFile && (
+                <button
+                  onClick={handleEvaluate}
+                  disabled={loading}
+                  style={{
+                    marginTop: "16px", padding: "10px 24px",
+                    background: "#1a1a2e", color: "#fff",
+                    border: "none", borderRadius: "8px",
+                    fontSize: "0.85rem", fontWeight: "600", cursor: "pointer",
+                  }}
+                >
+                  ⚡ Grade with Q&A Evaluation
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Q&A EVALUATION RESULTS */}
           {mode === "qa" && evaluations.length > 0 && (
             <div className="section" style={{ marginTop: "16px" }}>
               <div className="section-header" style={{
-                display: "flex", justifyContent: "space-between",
-                alignItems: "flex-start"
+                display: "flex", justifyContent: "space-between", alignItems: "flex-start"
               }}>
                 <div>
                   <h2 className="section-title">Evaluation Results</h2>
-                  <p className="section-desc">
-                    {evaluations.length} questions graded by Gemini
-                  </p>
+                  <p className="section-desc">{evaluations.length} questions graded by Gemini</p>
                 </div>
-                {/* Overall score */}
                 <div style={{ textAlign: "right" }}>
                   <div style={{
                     fontSize: "0.7rem", color: "#9a9888",
-                    textTransform: "uppercase", letterSpacing: "0.08em",
-                    marginBottom: "4px"
+                    textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "4px"
                   }}>
                     Overall Score
                   </div>
@@ -413,33 +501,24 @@ export default function App() {
 
               {evaluations.map((evaluation, i) => (
                 <div key={evaluation.id || i} style={{
-                  background: "#fff",
-                  border: "1px solid #e8e6de",
-                  borderRadius: "10px",
-                  padding: "16px 20px",
-                  marginBottom: "12px",
+                  background: "#fff", border: "1px solid #e8e6de",
+                  borderRadius: "10px", padding: "16px 20px", marginBottom: "12px",
                   borderLeft: `4px solid ${
                     evaluation.overall_score >= 0.7 ? "#4ade80"
-                    : evaluation.overall_score >= 0.4 ? "#fbbf24"
-                    : "#f87171"
+                    : evaluation.overall_score >= 0.4 ? "#fbbf24" : "#f87171"
                   }`,
                 }}>
-                  {/* Question header */}
                   <div style={{
                     display: "flex", justifyContent: "space-between",
                     alignItems: "center", marginBottom: "12px",
                   }}>
                     <div>
-                      <span style={{
-                        fontWeight: "700", fontSize: "0.95rem",
-                        color: "#1a1a2e", marginRight: "10px"
-                      }}>
+                      <span style={{ fontWeight: "700", fontSize: "0.95rem", color: "#1a1a2e", marginRight: "10px" }}>
                         Question {evaluation.question_number}
                       </span>
                       <span style={{
-                        fontSize: "0.7rem", padding: "2px 8px",
-                        borderRadius: "4px", background: "#ede9fe",
-                        color: "#5b21b6", fontWeight: "600"
+                        fontSize: "0.7rem", padding: "2px 8px", borderRadius: "4px",
+                        background: "#ede9fe", color: "#5b21b6", fontWeight: "600",
                       }}>
                         {evaluation.selected_criteria}
                       </span>
@@ -447,57 +526,41 @@ export default function App() {
                     <ScoreBadge score={evaluation.overall_score || 0} />
                   </div>
 
-                  {/* Feedback items */}
                   {evaluation.feedback?.map((item, j) => (
                     <div key={j} style={{
                       background: "#fafaf7", borderRadius: "8px",
                       padding: "12px 14px", marginBottom: "8px",
                       border: "1px solid #f0efe9",
                     }}>
-                      {/* Highlighted phrase */}
                       {item.highlight_phrase && (
                         <div style={{
-                          fontStyle: "italic", fontSize: "0.8rem",
-                          color: "#5b21b6", marginBottom: "8px",
-                          padding: "6px 10px", background: "#ede9fe",
-                          borderRadius: "6px", lineHeight: "1.5",
-                          borderLeft: "3px solid #7c5cfc",
+                          fontStyle: "italic", fontSize: "0.8rem", color: "#5b21b6",
+                          marginBottom: "8px", padding: "6px 10px", background: "#ede9fe",
+                          borderRadius: "6px", lineHeight: "1.5", borderLeft: "3px solid #7c5cfc",
                         }}>
                           "{item.highlight_phrase}"
                         </div>
                       )}
-
-                      {/* Comment */}
-                      <p style={{
-                        fontSize: "0.83rem", color: "#3d3b30",
-                        lineHeight: "1.65", margin: "0 0 10px",
-                      }}>
+                      <p style={{ fontSize: "0.83rem", color: "#3d3b30", lineHeight: "1.65", margin: "0 0 10px" }}>
                         {item.comment}
                       </p>
-
-                      {/* Badges */}
                       <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                         <span style={{
-                          fontSize: "0.65rem", padding: "2px 7px",
-                          borderRadius: "4px", background: "#ede9fe",
-                          color: "#5b21b6", fontWeight: "600",
+                          fontSize: "0.65rem", padding: "2px 7px", borderRadius: "4px",
+                          background: "#ede9fe", color: "#5b21b6", fontWeight: "600",
                           textTransform: "uppercase",
                         }}>
                           {item.criterion}
                         </span>
                         <span style={{
-                          fontSize: "0.65rem", padding: "2px 7px",
-                          borderRadius: "4px", fontWeight: "600",
-                          background: item.score >= 0.7 ? "#dcfce7"
-                            : item.score >= 0.4 ? "#fef9c3" : "#fee2e2",
-                          color: item.score >= 0.7 ? "#166534"
-                            : item.score >= 0.4 ? "#92400e" : "#991b1b",
+                          fontSize: "0.65rem", padding: "2px 7px", borderRadius: "4px", fontWeight: "600",
+                          background: item.score >= 0.7 ? "#dcfce7" : item.score >= 0.4 ? "#fef9c3" : "#fee2e2",
+                          color: item.score >= 0.7 ? "#166534" : item.score >= 0.4 ? "#92400e" : "#991b1b",
                         }}>
                           Score: {Math.round((item.score || 0) * 100)}%
                         </span>
                         <span style={{
-                          fontSize: "0.65rem", padding: "2px 7px",
-                          borderRadius: "4px", fontWeight: "600",
+                          fontSize: "0.65rem", padding: "2px 7px", borderRadius: "4px", fontWeight: "600",
                           background: (item.confidence || 0) > 0.8 ? "#dcfce7" : "#fef9c3",
                           color: (item.confidence || 0) > 0.8 ? "#166534" : "#92400e",
                         }}>
@@ -507,13 +570,11 @@ export default function App() {
                     </div>
                   ))}
 
-                  {/* Needs review */}
                   {evaluation.needs_review && (
                     <div style={{
-                      marginTop: "8px", fontSize: "0.75rem",
-                      color: "#b45309", background: "#fef3c7",
-                      border: "1px solid #fde68a", borderRadius: "4px",
-                      padding: "4px 10px", display: "inline-block",
+                      marginTop: "8px", fontSize: "0.75rem", color: "#b45309",
+                      background: "#fef3c7", border: "1px solid #fde68a",
+                      borderRadius: "4px", padding: "4px 10px", display: "inline-block",
                     }}>
                       ⚠ Needs Instructor Review
                     </div>
@@ -523,7 +584,7 @@ export default function App() {
             </div>
           )}
 
-          {/* ── SINGLE PDF RESULTS ───────────────────────────────────── */}
+          {/* SINGLE PDF RESULTS */}
           {mode === "single" && (
             <>
               <PDFViewer pdfFile={pdfFile} annotations={annotations} />

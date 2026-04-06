@@ -768,7 +768,13 @@ def evaluate_batch_with_langgraph(questions: List[Dict], full_text: str,
     # Add metadata to evaluations
     evaluations = final_state["evaluations"]
     for i, evaluation in enumerate(evaluations):
-        q_num = evaluation.get("question_number", i + 1)
+    # Safely convert question_number to int regardless of whether
+    # Gemini returns 1, 1.0, "1", or "1.1"
+        raw_q_num = evaluation.get("question_number", i + 1)
+    try:
+        q_num = int(float(str(raw_q_num).split(".")[0]))
+    except (ValueError, TypeError):
+        q_num = i + 1
         evaluation.update({
             "id": f"eval-{job_id[:8]}-{q_num:03d}",
             "qa_pair_id": f"Q{q_num}",
