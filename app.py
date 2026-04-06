@@ -55,6 +55,21 @@ async def upload_pdf(file: UploadFile = File(...)):
                 tmp_path = tmp.name
             try:
                 question_detection = detect_questions_in_submission(tmp_path)
+                # After question_detection runs, add this correction
+                if(
+                    question_detection.get("has_questions") and
+                    len(question_detection.get("extracted_questions", [])) == 0
+                    ):
+                # Gemini detected questions but regex couldn't extract them
+                # Treat as answers_only and ask for questionnaire
+                    question_detection["verdict"]      = "answers_only"
+                    question_detection["has_questions"] = False
+                    question_detection["reasoning"]    = (
+                        question_detection.get("reasoning", "") + 
+                        " Questions detected but could not be extracted automatically — "
+                        "please upload the question paper separately."
+                        )
+                
             finally:
                 os.unlink(tmp_path)
         except Exception as e:
