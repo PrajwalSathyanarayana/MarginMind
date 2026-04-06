@@ -84,18 +84,55 @@ class BatchEvaluationState(TypedDict):
 # ============================================================================
 
 def extract_questions_simple(pdf_path: str) -> List[Dict[str, Any]]:
-    """Extract questions using simple regex."""
+    """Extract questions using regex — handles multiple numbering formats."""
     doc = fitz.open(pdf_path)
     full_text = "".join([page.get_text() for page in doc])
     doc.close()
-    
-    pattern = r'(?:Question|Q)\s*(\d+)[:\.]?\s*(.*?)(?=(?:Question|Q)\s*\d+|$)'
-    matches = re.findall(pattern, full_text, re.DOTALL | re.IGNORECASE)
-    
-    return [
-        {"q_id": f"Q{num}", "number": int(num), "text": text.strip()}
-        for num, text in matches if text.strip()
-    ]
+
+    questions = []
+
+    # ── Format 1: Q1, Q2 or Question 1, Question 2 ────────────────────
+    pattern_q = r'(?:Question|Q)\s*(\d+)[:\.]?\s*(.*?)(?=(?:Question|Q)\s*\d+|$)'
+    matches = re.findall(pattern_q, full_text, re.DOTALL | re.IGNORECASE)
+    if matches:
+        return [
+            {"q_id": f"Q{num}", "number": int(num), "text": text.strip()}
+            for num, text in matches if text.strip()
+        ]
+
+    # ── Format 2: 1.1, 1.2, 2.1 (section-style academic assignments) ──
+    pattern_section = r'(\d+\.\d+)\s+(.*?)(?=\d+\.\d+\s+[A-Z]|$)'
+    matches = re.findall(pattern_section, full_text, re.DOTALL)
+    if matches:
+        numbered = []
+        for i, (section_num, text) in enumerate(matches):
+            cleaned = text.strip()
+            if len(cleaned) > 20:  # skip very short fragments
+                numbered.append({
+                    "q_id":   f"Q{section_num}",
+                    "number": i + 1,
+                    "text":   f"{section_num} {cleaned[:500]}"  # cap length
+                })
+        if numbered:
+            return numbered
+
+    # ── Format 3: Plain numbered 1. 2. 3. ─────────────────────────────
+    pattern_numbered = r'(?<!\d)(\d{1,2})\.\s+(.*?)(?=(?<!\d)\d{1,2}\.\s+[A-Z]|$)'
+    matches = re.findall(pattern_numbered, full_text, re.DOTALL)
+    if matches:
+        numbered = []
+        for num, text in matches:
+            cleaned = text.strip()
+            if len(cleaned) > 20:
+                numbered.append({
+                    "q_id":   f"Q{num}",
+                    "number": int(num),
+                    "text":   cleaned[:500]
+                })
+        if numbered:
+            return numbered
+
+    return []
 
 
 # def extract_full_text(pdf_path: str) -> str:
@@ -441,23 +478,75 @@ def batch_evaluate_node(state: BatchEvaluationState) -> BatchEvaluationState:
         ])
         
         result = chain.invoke({
-            "questions": questions_text,
-            "submission": state["full_text"][:20000],  # Limit to avoid token limits
+            "questions":      questions_text,
+            "submission":     state["full_text"][:40000],
             "judge_feedback": state.get("judge_feedback"),
-            "num_questions": len(state["questions"])
+            "num_questions":  len(state["questions"])
         })
-        
+
         # Ensure result is a list
         if isinstance(result, list):
-            state["evaluations"] = result
+            evaluations = result
         else:
-            state["evaluations"] = [result]
-        
-        # Add criteria details
-        for evaluation in state["evaluations"]:
-            criteria_type = evaluation.get("selected_criteria", "reasoning")
-            if criteria_type in EVALUATION_CRITERIA:
-                evaluation["criteria_details"] = EVALUATION_CRITERIA[criteria_type]
+            evaluations = [result]
+
+        # ── Gap detection: find which questions were skipped ───────────
+        expected_nums  = {q["number"] for q in state["questions"]}
+        returned_nums  = {
+            int(float(e.get("question_number", 0)))
+            for e in evaluations
+            if e.get("question_number")
+        }
+        missing_nums   = expected_nums - returned_nums
+
+        # ── Fill in placeholder for any skipped questions ──────────────
+        for missing_num in sorted(missing_nums):
+            # Find the original question text
+            original_q = next(
+                (q for q in state["questions"] if q["number"] == missing_num),
+                None
+            )
+            q_text = original_q["text"] if original_q else f"Question {missing_num}"
+
+            # Try to evaluate the missing question individually
+            try:
+                single_chain = create_batch_evaluation_chain()
+                if single_chain:
+                    single_result = single_chain.invoke({
+                        "questions":      f"{missing_num}. {q_text}",
+                        "submission":     state["full_text"][:40000],
+                        "judge_feedback": None,
+                        "num_questions":  1
+                    })
+                    if isinstance(single_result, list) and single_result:
+                        single_result[0]["question_number"] = missing_num
+                        evaluations.append(single_result[0])
+                    elif isinstance(single_result, dict):
+                        single_result["question_number"] = missing_num
+                        evaluations.append(single_result)
+                else:
+                    raise Exception("No chain available")
+
+            except Exception:
+                # If retry also fails, add a placeholder so it's not silently skipped
+                evaluations.append({
+                    "question_number": missing_num,
+                    "selected_criteria": "reasoning",
+                    "feedback": [{
+                        "criterion":        "evaluation_error",
+                        "score":            0.0,
+                        "highlight_phrase": None,
+                        "comment":          f"Question {missing_num} could not be evaluated automatically. Please review manually.",
+                        "confidence":       0.0,
+                    }],
+                    "overall_score": 0.0,
+                    "needs_review":  True,
+                    "error":         "skipped_by_model",
+                })
+
+        # Sort by question number so UI displays in order
+        evaluations.sort(key=lambda e: int(float(e.get("question_number", 0))))
+        state["evaluations"] = evaluations
         
     except Exception as e:
         state["error"] = str(e)
@@ -483,7 +572,7 @@ def batch_judge_node(state: BatchEvaluationState) -> BatchEvaluationState:
         
         result = chain.invoke({
             "questions": questions_text,
-            "submission": state["full_text"][:20000],
+            "submission": state["full_text"][:40000],
             "evaluations": state["evaluations"],
             "num_evals": len(state["questions"])
         })
@@ -768,21 +857,30 @@ def evaluate_batch_with_langgraph(questions: List[Dict], full_text: str,
     # Add metadata to evaluations
     evaluations = final_state["evaluations"]
     for i, evaluation in enumerate(evaluations):
-    # Safely convert question_number to int regardless of whether
-    # Gemini returns 1, 1.0, "1", or "1.1"
         raw_q_num = evaluation.get("question_number", i + 1)
-    try:
-        q_num = int(float(str(raw_q_num).split(".")[0]))
-    except (ValueError, TypeError):
-        q_num = i + 1
+        try:
+            q_num = int(float(str(raw_q_num).split(".")[0]))
+        except (ValueError, TypeError):
+            q_num = i + 1
+
+        # Map back to the original question's q_id (e.g. "Q1.1", "Q2.3")
+        # Gemini returns question_number as sequential 1,2,3
+        # but our questions list has the real section IDs
+        q_index = q_num - 1
+        if 0 <= q_index < len(questions):
+            original_q_id = questions[q_index].get("q_id", f"Q{q_num}")
+        else:
+            original_q_id = f"Q{q_num}"
+
         evaluation.update({
-            "id": f"eval-{job_id[:8]}-{q_num:03d}",
-            "qa_pair_id": f"Q{q_num}",
+            "id":            f"eval-{job_id[:8]}-{q_num:03d}",
+            "qa_pair_id":    original_q_id,   
             "judge_approved": final_state["judge_approved"],
-            "retry_count": final_state["retry_count"],
-            "needs_review": (
+            "retry_count":   final_state["retry_count"],
+            "needs_review":  (
                 not final_state["judge_approved"] or
-                any(f.get("bbox") is None and f.get("highlight_phrase") for f in evaluation.get("feedback", []))
+                any(f.get("bbox") is None and f.get("highlight_phrase")
+                    for f in evaluation.get("feedback", []))
             ),
             "error": final_state.get("error")
         })
@@ -795,48 +893,62 @@ def evaluate_batch_with_langgraph(questions: List[Dict], full_text: str,
 # ============================================================================
 
 def find_phrase_bbox(phrase: str, words: List[Dict]) -> Optional[Dict]:
-    """Find exact phrase and compute combined bbox."""
-    phrase_words = phrase.lower().split()
-    
+    """Find exact phrase and compute combined bbox.
+    Normalizes punctuation so quotes/apostrophes don't break matching.
+    """
+    import re
+
+    def normalize(text: str) -> str:
+        # Remove all punctuation and lowercase for comparison
+        return re.sub(r'[^\w\s]', '', text.lower()).strip()
+
+    phrase_words  = normalize(phrase).split()
+    if not phrase_words:
+        return None
+
     for i in range(len(words) - len(phrase_words) + 1):
-        window = words[i:i + len(phrase_words)]
-        window_text = [w["text"].lower() for w in window]
-        
+        window       = words[i:i + len(phrase_words)]
+        window_text  = [normalize(w["text"]) for w in window]
         if window_text == phrase_words:
             return {
-                "x0": min(w["bbox"]["x0"] for w in window),
-                "y0": min(w["bbox"]["y0"] for w in window),
-                "x1": max(w["bbox"]["x1"] for w in window),
-                "y1": max(w["bbox"]["y1"] for w in window),
+                "x0":   min(w["bbox"]["x0"] for w in window),
+                "y0":   min(w["bbox"]["y0"] for w in window),
+                "x1":   max(w["bbox"]["x1"] for w in window),
+                "y1":   max(w["bbox"]["y1"] for w in window),
                 "page": window[0]["page"]
             }
-    
+
     return None
 
 
 def find_phrase_bbox_fuzzy(phrase: str, words: List[Dict]) -> Optional[Dict]:
-    """Fuzzy match phrase with 80% similarity threshold."""
-    phrase_lower = phrase.lower()
-    best_match = None
-    best_score = 0
-    
+    """Fuzzy match phrase with normalization — handles quotes and punctuation differences."""
+    import re
+
+    def normalize(text: str) -> str:
+        return re.sub(r'[^\w\s]', '', text.lower()).strip()
+
+    phrase_normalized = normalize(phrase)
+    best_match        = None
+    best_score        = 0
+
     for size in range(1, min(20, len(words))):
         for i in range(len(words) - size + 1):
-            window = words[i:i + size]
-            candidate = " ".join([w["text"] for w in window])
-            score = fuzz.ratio(phrase_lower, candidate.lower())
-            
-            if score > best_score and score > 80:
+            window    = words[i:i + size]
+            candidate = " ".join([normalize(w["text"]) for w in window])
+            score     = fuzz.ratio(phrase_normalized, candidate)
+
+            if score > best_score and score > 65:
                 best_score = score
                 best_match = window
-    
+
     if best_match:
         return {
-            "x0": min(w["bbox"]["x0"] for w in best_match),
-            "y0": min(w["bbox"]["y0"] for w in best_match),
-            "x1": max(w["bbox"]["x1"] for w in best_match),
-            "y1": max(w["bbox"]["y1"] for w in best_match),
+            "x0":   min(w["bbox"]["x0"] for w in best_match),
+            "y0":   min(w["bbox"]["y0"] for w in best_match),
+            "x1":   max(w["bbox"]["x1"] for w in best_match),
+            "y1":   max(w["bbox"]["y1"] for w in best_match),
             "page": best_match[0]["page"]
         }
-    
+
     return None
