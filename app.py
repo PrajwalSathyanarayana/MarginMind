@@ -29,45 +29,52 @@ job_store = {}
 async def health_check():
     return {"status": "ok", "version": "1.0.0"}
 
-
 @app.post("/upload")
 async def upload_pdf(file: UploadFile = File(...)):
-
-    job_id = str(uuid.uuid4())
+    job_id  = str(uuid.uuid4())
     content = await file.read()
 
-    # with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp:
-    #     temp_path = temp.name
-    #     content = await file.read()
-    #     temp.write(content)
-    
-    # try:
-    #     doc = fitz.open(temp_path)
-    #     text = ""
-        
-    #     for page_num in range(len(doc)):
-    #         page = doc[page_num]
-    #         text += f"\n--- PAGE {page_num + 1} ---\n"
-    #         text += page.get_text()
-    #     page_count = len(doc)
-    #     doc.close()
-        
+    # Process with diagrams/tables modality
     result = process_diagrams(content, job_id, file.filename, file.content_type or "")
-        # Save result to job store so /status and /feedback can retrieve it
     job_store[job_id] = result
-        
+
+    # ── Auto-detect if submission contains questions ───────────────────
+    # Runs on every PDF upload so frontend knows whether to ask
+    # for a questionnaire or proceed directly to evaluation
+    question_detection = {"has_questions": False, "confidence": 0.0,
+                          "verdict": "uncertain", "extracted_questions": [],
+                          "reasoning": "", "detected_question_count": 0}
+
+    if (file.content_type or "").lower() == "application/pdf" or \
+       file.filename.lower().endswith(".pdf"):
+        try:
+            import tempfile, os
+            from Modal.text import detect_questions_in_submission
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                tmp.write(content)
+                tmp_path = tmp.name
+            try:
+                question_detection = detect_questions_in_submission(tmp_path)
+            finally:
+                os.unlink(tmp_path)
+        except Exception as e:
+            question_detection["reasoning"] = f"Detection error: {str(e)}"
+
+    # Store detection result alongside job
+    job_store[job_id]["question_detection"] = question_detection
+
     return {
-            "job_id":   job_id,      
-            "status": "done",
-            "filename": file.filename,
-            "document_type": result.get("document_type", "pdf"),
-            "page_count": result["page_count"],
-            "table_count": result["table_count"], 
-            "figure_count": result.get("figure_count", 0),
-        }
-    
-    # finally:
-    #     Path(temp_path).unlink()
+        "job_id":        job_id,
+        "status":        "done",
+        "filename":      file.filename,
+        "document_type": result.get("document_type", "pdf"),
+        "page_count":    result["page_count"],
+        "table_count":   result["table_count"],
+        "figure_count":  result.get("figure_count", 0),
+
+        # Frontend uses these to decide next step
+        "question_detection": question_detection,
+    }
 
 @app.get("/status/{job_id}") # Frontend polls this after upload to check if processing is complete
 async def get_status(job_id: str):

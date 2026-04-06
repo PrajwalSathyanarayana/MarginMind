@@ -568,7 +568,117 @@ def create_batch_evaluation_graph():
     
     return workflow.compile()
 
+def detect_questions_in_submission(pdf_path: str) -> dict:
+    """
+    Uses Gemini to detect whether a submission PDF contains
+    questions alongside answers, or just answers alone.
 
+    Returns:
+        {
+            "has_questions":        True/False,
+            "confidence":           0.0-1.0,
+            "verdict":              "self_contained" | "answers_only" | "uncertain",
+            "extracted_questions":  [...] or [],
+            "reasoning":            "explanation"
+        }
+    """
+
+    # First extract text to send to Gemini
+    full_text = extract_full_text(pdf_path)
+
+    if not full_text or len(full_text.strip()) < 50:
+        return {
+            "has_questions":       False,
+            "confidence":          0.0,
+            "verdict":             "uncertain",
+            "extracted_questions": [],
+            "reasoning":           "Insufficient text extracted from document.",
+        }
+
+    if not GEMINI_API_KEY:
+        return {
+            "has_questions":       False,
+            "confidence":          0.0,
+            "verdict":             "uncertain",
+            "extracted_questions": [],
+            "reasoning":           "Gemini API key not configured.",
+        }
+
+    try:
+        llm = ChatGoogleGenerativeAI(
+            model="gemini-2.5-flash-lite",
+            google_api_key=GEMINI_API_KEY,
+            temperature=0,
+        )
+
+        prompt = ChatPromptTemplate.from_template("""
+You are analyzing a student document to determine whether it contains both 
+QUESTIONS and ANSWERS together, or just ANSWERS alone.
+
+DOCUMENT TEXT (first 3000 characters):
+{text}
+
+Analyze the document carefully and determine:
+1. Does this document contain explicit questions (numbered, labeled, or clearly stated)?
+2. Does it contain student answers to those questions?
+3. Or does it contain only answers/responses without the original questions?
+
+Examples of documents WITH questions:
+- "Q1. What is photosynthesis? Answer: Photosynthesis is..."
+- "1. Explain Newton's laws. Student response: Newton's first law..."
+- "Question 1: Describe the water cycle. [student writes answer below]"
+
+Examples of documents WITHOUT questions (answers only):
+- "Answer 1: The cell membrane consists of..."
+- "1. The process of photosynthesis involves..."
+- A lab report, essay, or problem set solutions without the original questions
+
+Respond ONLY with valid JSON:
+{{
+    "has_questions": true or false,
+    "confidence": 0.0 to 1.0,
+    "verdict": "self_contained" or "answers_only" or "uncertain",
+    "reasoning": "1-2 sentence explanation of your decision",
+    "detected_question_count": 0
+}}
+
+Verdict guide:
+- "self_contained": Document clearly has both questions AND answers (confidence > 0.8)
+- "answers_only": Document clearly has only answers, no questions (confidence > 0.8)  
+- "uncertain": Cannot clearly determine (confidence 0.5-0.8)
+""")
+
+        parser = JsonOutputParser()
+        chain  = prompt | llm | parser
+
+        result = chain.invoke({"text": full_text[:3000]})
+
+        has_questions = result.get("has_questions", False)
+        confidence    = float(result.get("confidence", 0.0))
+        verdict       = result.get("verdict", "uncertain")
+
+        # If self-contained, also extract the questions
+        extracted_questions = []
+        if has_questions and confidence > 0.8:
+            extracted_questions = extract_questions_simple(pdf_path)
+
+        return {
+            "has_questions":       has_questions,
+            "confidence":          round(confidence, 3),
+            "verdict":             verdict,
+            "extracted_questions": extracted_questions,
+            "reasoning":           result.get("reasoning", ""),
+            "detected_question_count": result.get("detected_question_count", 0),
+        }
+
+    except Exception as e:
+        return {
+            "has_questions":       False,
+            "confidence":          0.0,
+            "verdict":             "uncertain",
+            "extracted_questions": [],
+            "reasoning":           f"Detection failed: {str(e)}",
+        }
 # ============================================================================
 # MAIN PROCESS
 # ============================================================================
