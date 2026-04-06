@@ -6,6 +6,8 @@ import fitz
 import uuid # henerate unique job ID 
 from Modal.text import process as process_text
 from Modal.diagrams_tables import process as process_diagrams
+from dotenv import load_dotenv
+load_dotenv()
 
 app = FastAPI()
 
