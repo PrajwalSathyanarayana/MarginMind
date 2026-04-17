@@ -269,8 +269,9 @@ const scrollCardIntoView = useCallback((annId) => {
               />
 
               {/* Annotation highlight overlays */}
+              {/* MAP 1 — Colored highlight boxes on the text */}
               {imgDimensions.width > 0 && pageAnnotations.map((ann, i) => {
-                const bbox     = ann.bbox;
+                const bbox   = ann.bbox;
                 if (!bbox) return null;
                 const colors   = scoreColor(ann.score ?? ann.confidence);
                 const isActive = activeAnnotation?.id === ann.id;
@@ -282,7 +283,7 @@ const scrollCardIntoView = useCallback((annId) => {
 
                 return (
                   <div
-                    key={ann.id || i}
+                    key={`highlight-${ann.id || i}`}
                     onClick={() => handleCardClick(ann)}
                     title={ann.feedback}
                     style={{
@@ -299,25 +300,75 @@ const scrollCardIntoView = useCallback((annId) => {
                       transition:   "all 0.15s",
                       zIndex:       10,
                     }}
-                  >
-                    <span style={{
+                  />
+                );
+              })}
+
+              {/* MAP 2 — Score pills in left margin, no click handler */}
+              {imgDimensions.width > 0 && pageAnnotations.map((ann, i) => {
+                const bbox   = ann.bbox;
+                if (!bbox) return null;
+                const colors = scoreColor(ann.score ?? ann.confidence);
+                const top    = (bbox.y || bbox.y0 || 0) * imgDimensions.height;
+
+                return (
+                  <div
+                    key={`pill-${ann.id || i}`}
+                    style={{
                       position:      "absolute",
-                      right:         "-2px",
-                      top:           "-18px",
-                      background:    colors.border,
-                      color:         "#fff",
-                      fontSize:      "0.58rem",
-                      fontWeight:    "700",
-                      padding:       "1px 5px",
-                      borderRadius:  "3px",
-                      fontFamily:    "monospace",
+                      left:          "-72px",
+                      top:           `${top}px`,
+                      transform:     "translateY(-25%)",
+                      background:    "#fff",
+                      border:        `2px solid ${colors.border}`,
+                      borderRadius:  "6px",
+                      padding:       "3px 7px",
                       whiteSpace:    "nowrap",
+                      boxShadow:     "0 2px 6px rgba(0,0,0,0.10)",
+                      display:       "flex",
+                      flexDirection: "column",
+                      alignItems:    "center",
+                      minWidth:      "44px",
+                      zIndex:        20,
                       pointerEvents: "none",
-                      boxShadow:     "0 1px 3px rgba(0,0,0,0.2)",
+                    }}
+                  >
+                    {ann.questionLabel && (
+                      <span style={{
+                        fontSize:      "0.58rem",
+                        fontWeight:    "700",
+                        color:         "#1a1a2e",
+                        fontFamily:    "monospace",
+                        letterSpacing: "0.04em",
+                        marginBottom:  "1px",
+                      }}>
+                        {ann.questionLabel}
+                      </span>
+                    )}
+                    <span style={{
+                      fontSize:   "0.85rem",
+                      fontWeight: "800",
+                      color:      colors.border,
+                      fontFamily: "monospace",
+                      lineHeight: "1.1",
                     }}>
-                      {ann.questionLabel && `${ann.questionLabel} · `}
                       {Math.round((ann.score ?? ann.confidence) * 100)}%
                     </span>
+                    <div style={{
+                      width:        "36px",
+                      height:       "3px",
+                      background:   "#e8e6de",
+                      borderRadius: "99px",
+                      marginTop:    "3px",
+                      overflow:     "hidden",
+                    }}>
+                      <div style={{
+                        width:        `${Math.round((ann.score ?? ann.confidence) * 100)}%`,
+                        height:       "100%",
+                        background:   colors.border,
+                        borderRadius: "99px",
+                      }} />
+                    </div>
                   </div>
                 );
               })}
@@ -470,7 +521,7 @@ const styles = {
     overflowY:      "auto",
     display:        "flex",
     justifyContent: "center",
-    padding:        "20px",
+    padding:        "20px 20px 20px 80px",
     background:     "#e8e6df",
   },
   loadingOverlay: {

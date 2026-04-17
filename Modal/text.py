@@ -45,7 +45,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
 try:
     llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash-lite",
+        model="gemini-3.1-flash-lite-preview",
         google_api_key=GEMINI_API_KEY,
         temperature=0
     )
@@ -331,7 +331,7 @@ def create_batch_evaluation_chain():
         return None
     
     llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash-lite",
+        model="gemini-3.1-flash-lite-preview",
         google_api_key=GEMINI_API_KEY,
         temperature=0.3
     )
@@ -695,7 +695,7 @@ def detect_questions_in_submission(pdf_path: str) -> dict:
 
     try:
         llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash-lite",
+            model="gemini-3.1-flash-lite-preview",
             google_api_key=GEMINI_API_KEY,
             temperature=0,
         )

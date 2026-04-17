@@ -566,7 +566,7 @@ def _generate_gemini_feedback(result: dict, job_id: str) -> list:
         ]
 
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel("gemini-3.1-flash-lite-preview")
         annotations = []
         annotation_index = 1
 
