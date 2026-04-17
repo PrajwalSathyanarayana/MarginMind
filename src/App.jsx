@@ -86,22 +86,6 @@ function FileDropZone({ label, desc, file, onFile, accept = "application/pdf" })
   );
 }
 
-// ── Score badge ────────────────────────────────────────────────────────────
-function ScoreBadge({ score }) {
-  const pct   = Math.round(score * 100);
-  const color = pct >= 70 ? "#166534" : pct >= 40 ? "#92400e" : "#991b1b";
-  const bg    = pct >= 70 ? "#dcfce7" : pct >= 40 ? "#fef9c3" : "#fee2e2";
-  return (
-    <span style={{
-      fontFamily: "monospace", fontSize: "0.85rem", fontWeight: "700",
-      color, background: bg, padding: "3px 10px",
-      borderRadius: "99px", border: `1px solid ${color}33`,
-    }}>
-      {pct}%
-    </span>
-  );
-}
-
 // ── Main App ───────────────────────────────────────────────────────────────
 export default function App() {
 
@@ -138,7 +122,10 @@ export default function App() {
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
       const result = await res.json();
       setJobResult(result);
-      setEvaluations(result.evaluations || []);
+      // Fallback: also check nested evaluations
+      const evals = result.evaluations || result.qa_pairs || [];
+      setEvaluations(evals);
+      console.log("Evaluations received:", evals.length, evals);
 
     } catch (err) {
       setError(`Evaluation failed: ${err.message}`);
@@ -149,34 +136,77 @@ export default function App() {
   };
 
   // ── Q&A Evaluation with separate question paper ───────────────────────────
-  const handleEvaluate = async () => {
-    if (!questionnaireFile || !submissionFile) return;
-    setError(null);
-    setLoading(true);
-    setMode("qa");
+const handleEvaluate = async () => {
+  if (!questionnaireFile || !submissionFile) return;
+  setError(null);
+  setLoading(true);
+  setMode("qa");
 
-    try {
-      const formData = new FormData();
-      formData.append("questionnaire", questionnaireFile);
-      formData.append("submission",    submissionFile);
+  try {
+    // Step 1 — Upload submission to cache page images for PDFViewer
+    const uploadForm = new FormData();
+    uploadForm.append("file", submissionFile);
+    const uploadRes = await fetch("http://127.0.0.1:8000/upload", {
+      method: "POST",
+      body:   uploadForm,
+    });
+    if (!uploadRes.ok) throw new Error(`Upload error: ${uploadRes.status}`);
+    const uploadResult = await uploadRes.json();
 
-      const res = await fetch("http://127.0.0.1:8000/text", {
-        method: "POST",
-        body:   formData,
-      });
+    // Step 2 — Run Q&A evaluation
+    const evalForm = new FormData();
+    evalForm.append("questionnaire", questionnaireFile);
+    evalForm.append("submission",    submissionFile);
+    const evalRes = await fetch("http://127.0.0.1:8000/text", {
+      method: "POST",
+      body:   evalForm,
+    });
+    if (!evalRes.ok) throw new Error(`Evaluation error: ${evalRes.status}`);
+    const evalResult = await evalRes.json();
 
-      if (!res.ok) throw new Error(`Server error: ${res.status}`);
-      const result = await res.json();
-      setJobResult(result);
-      setEvaluations(result.evaluations || []);
-
-    } catch (err) {
-      setError(`Evaluation failed: ${err.message}`);
-      setMode(null);
-    } finally {
-      setLoading(false);
+    // Step 3 — Convert text evaluations to PDFViewer annotation format
+    const annotations = [];
+    let annIndex = 1;
+    for (const evaluation of (evalResult.evaluations || [])) {
+      for (const item of (evaluation.feedback || [])) {
+        if (!item.bbox) continue;
+        const bbox = item.bbox;
+        annotations.push({
+          id:          `qa-ann-${annIndex++}`,
+          page:        bbox.page || 1,
+          questionLabel: evaluation.qa_pair_id || `Q${evaluation.question_number}`,
+          bbox: {
+            x:      bbox.x0      || 0.05,
+            y:      bbox.y0      || 0.05,
+            width:  (bbox.x1 - bbox.x0) || 0.9,
+            height: (bbox.y1 - bbox.y0) || 0.04,
+          },
+          region_type:  item.criterion || "answer",
+          feedback:     item.comment   || "",
+          confidence:   item.confidence || item.score || 0.75,
+          needs_review: (item.confidence || 0) < 0.6,
+          score:        item.score,
+        });
+      }
     }
-  };
+
+    // Step 4 — Set all state
+    setPdfFile(submissionFile);
+    setJobResult({
+      ...evalResult,
+      job_id:      uploadResult.job_id,   // ← use upload job_id for page images
+      page_count:  uploadResult.page_count,
+    });
+    setEvaluations(evalResult.evaluations || []);
+    setAnnotations(annotations);
+
+  } catch (err) {
+    setError(`Evaluation failed: ${err.message}`);
+    setMode(null);
+  } finally {
+    setLoading(false);
+  }
+};
 
   // ── Analyze submission only — with auto question detection ────────────────
   const handleAnalyze = async () => {
@@ -367,6 +397,22 @@ export default function App() {
                     {jobResult.needs_review_count > 0 &&
                       ` · ${jobResult.needs_review_count} flagged for review`}
                   </span>
+                  {evaluations.length > 0 && (
+                    <span style={{
+                      marginLeft: "12px",
+                      fontFamily: "monospace", fontWeight: "700",
+                      fontSize: "0.85rem",
+                      color: (() => {
+                        const avg = evaluations.reduce((s, e) => s + (e.overall_score || 0), 0) / evaluations.length;
+                        return avg >= 0.7 ? "#166534" : avg >= 0.4 ? "#92400e" : "#991b1b";
+                      })(),
+                    }}>
+                      · Overall: {Math.round(
+                        evaluations.reduce((s, e) => s + (e.overall_score || 0), 0)
+                        / evaluations.length * 100
+                      )}%
+                    </span>
+                  )}
                 </>
               ) : (
                 <>
@@ -473,123 +519,37 @@ export default function App() {
             </div>
           )}
 
-          {/* Q&A EVALUATION RESULTS */}
-          {mode === "qa" && evaluations.length > 0 && (
-            <div className="section" style={{ marginTop: "16px" }}>
-              <div className="section-header" style={{
-                display: "flex", justifyContent: "space-between", alignItems: "flex-start"
-              }}>
-                <div>
-                  <h2 className="section-title">Evaluation Results</h2>
-                  <p className="section-desc">{evaluations.length} questions graded by Gemini</p>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{
-                    fontSize: "0.7rem", color: "#9a9888",
-                    textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "4px"
-                  }}>
-                    Overall Score
-                  </div>
-                  <ScoreBadge
-                    score={
-                      evaluations.reduce((sum, e) => sum + (e.overall_score || 0), 0)
-                      / evaluations.length
-                    }
-                  />
-                </div>
-              </div>
-
-              {evaluations.map((evaluation, i) => (
-                <div key={evaluation.id || i} style={{
-                  background: "#fff", border: "1px solid #e8e6de",
-                  borderRadius: "10px", padding: "16px 20px", marginBottom: "12px",
-                  borderLeft: `4px solid ${
-                    evaluation.overall_score >= 0.7 ? "#4ade80"
-                    : evaluation.overall_score >= 0.4 ? "#fbbf24" : "#f87171"
-                  }`,
-                }}>
-                  <div style={{
-                    display: "flex", justifyContent: "space-between",
-                    alignItems: "center", marginBottom: "12px",
-                  }}>
-                    <div>
-                      <span style={{ fontWeight: "700", fontSize: "0.95rem", color: "#1a1a2e", marginRight: "10px" }}>
-                        Question {evaluation.question_number}
-                      </span>
-                      <span style={{
-                        fontSize: "0.7rem", padding: "2px 8px", borderRadius: "4px",
-                        background: "#ede9fe", color: "#5b21b6", fontWeight: "600",
-                      }}>
-                        {evaluation.selected_criteria}
-                      </span>
-                    </div>
-                    <ScoreBadge score={evaluation.overall_score || 0} />
-                  </div>
-
-                  {evaluation.feedback?.map((item, j) => (
-                    <div key={j} style={{
-                      background: "#fafaf7", borderRadius: "8px",
-                      padding: "12px 14px", marginBottom: "8px",
-                      border: "1px solid #f0efe9",
-                    }}>
-                      {item.highlight_phrase && (
-                        <div style={{
-                          fontStyle: "italic", fontSize: "0.8rem", color: "#5b21b6",
-                          marginBottom: "8px", padding: "6px 10px", background: "#ede9fe",
-                          borderRadius: "6px", lineHeight: "1.5", borderLeft: "3px solid #7c5cfc",
-                        }}>
-                          "{item.highlight_phrase}"
-                        </div>
-                      )}
-                      <p style={{ fontSize: "0.83rem", color: "#3d3b30", lineHeight: "1.65", margin: "0 0 10px" }}>
-                        {item.comment}
-                      </p>
-                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                        <span style={{
-                          fontSize: "0.65rem", padding: "2px 7px", borderRadius: "4px",
-                          background: "#ede9fe", color: "#5b21b6", fontWeight: "600",
-                          textTransform: "uppercase",
-                        }}>
-                          {item.criterion}
-                        </span>
-                        <span style={{
-                          fontSize: "0.65rem", padding: "2px 7px", borderRadius: "4px", fontWeight: "600",
-                          background: item.score >= 0.7 ? "#dcfce7" : item.score >= 0.4 ? "#fef9c3" : "#fee2e2",
-                          color: item.score >= 0.7 ? "#166534" : item.score >= 0.4 ? "#92400e" : "#991b1b",
-                        }}>
-                          Score: {Math.round((item.score || 0) * 100)}%
-                        </span>
-                        <span style={{
-                          fontSize: "0.65rem", padding: "2px 7px", borderRadius: "4px", fontWeight: "600",
-                          background: (item.confidence || 0) > 0.8 ? "#dcfce7" : "#fef9c3",
-                          color: (item.confidence || 0) > 0.8 ? "#166534" : "#92400e",
-                        }}>
-                          {Math.round((item.confidence || 0) * 100)}% confidence
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-
-                  {evaluation.needs_review && (
-                    <div style={{
-                      marginTop: "8px", fontSize: "0.75rem", color: "#b45309",
-                      background: "#fef3c7", border: "1px solid #fde68a",
-                      borderRadius: "4px", padding: "4px 10px", display: "inline-block",
-                    }}>
-                      ⚠ Needs Instructor Review
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
           {/* SINGLE PDF RESULTS */}
           {mode === "single" && (
             <>
-              <PDFViewer pdfFile={pdfFile} annotations={annotations} />
+              <PDFViewer
+                pdfFile={pdfFile}
+                annotations={annotations}
+                jobId={jobResult?.job_id}
+                pageCount={jobResult?.page_count || 1}
+              />
               <ParsedContent parsed={parsedContent} />
             </>
+          )}
+
+          {/* Q&A PDF VIEWER WITH OVERLAYS */}
+          {mode === "qa" && pdfFile && jobResult?.job_id && (
+            <div style={{ marginTop: "24px" }}>
+              <div style={{
+                fontWeight: "700", fontSize: "0.85rem",
+                color: "#3d3b30", marginBottom: "8px",
+                textTransform: "uppercase", letterSpacing: "0.08em",
+                fontFamily: "monospace",
+              }}>
+                📄 Annotated Submission
+              </div>
+              <PDFViewer
+                pdfFile={pdfFile}
+                annotations={annotations}
+                jobId={jobResult?.job_id}
+                pageCount={jobResult?.page_count || 1}
+              />
+            </div>
           )}
         </>
       )}

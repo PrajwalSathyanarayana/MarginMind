@@ -170,7 +170,31 @@ async def upload_text_qa(
     # Return FULL result including evaluations
     return result
 
+@app.get("/page/{job_id}/{page_num}")
+async def get_page_image(job_id: str, page_num: int):
+    """
+    Returns a single PDF page rendered as a PNG image.
+    Frontend fetches pages on demand — avoids loading all pages at once.
+    """
+    import fitz
+    import base64
 
+    if job_id not in job_store:
+        return {"error": "Job not found"}
+
+    job = job_store[job_id]
+
+    # We need the original file content to re-render
+    # Check if page image is already cached
+    cached = job.get("page_image_cache", {}).get(str(page_num))
+    if cached:
+        from fastapi.responses import Response
+        return Response(
+            content=base64.b64decode(cached),
+            media_type="image/png"
+        )
+
+    return {"error": "Page not available — re-upload document"}
 
 
 if __name__ == "__main__":

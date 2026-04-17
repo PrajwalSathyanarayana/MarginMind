@@ -464,22 +464,25 @@ def _process_pdf(file_content: bytes, job_id: str, filename: str, temp_path: str
                 })
 
     doc = fitz.open(temp_path)
+    page_image_cache = {}  # stores base64 PNG per page
     try:
         for i in range(len(doc)):
             page_num = i + 1
-            page = doc[i]
-            pix = page.get_pixmap()
+            page     = doc[i]
+
+            # Render at 150dpi — good balance of quality vs size
+            matrix = fitz.Matrix(150/72, 150/72)
+            pix    = page.get_pixmap(matrix=matrix, alpha=False)
+            png_bytes = pix.tobytes("png")
+
+            # Cache as base64 for the /page endpoint
+            page_image_cache[str(page_num)] = base64.b64encode(png_bytes).decode("ascii")
+
             page_images.append({
                 "page_num": page_num,
-                "width": pix.width,
-                "height": pix.height,
+                "width":    pix.width,
+                "height":   pix.height,
             })
-
-            if not pages[i]["text"].strip():
-                pages[i]["text"] = _safe_ocr_text_from_pdf_page(page)
-                pages[i]["char_count"] = len(pages[i]["text"])
-
-            figures.extend(_extract_figures_from_pdf_page(page, page_num))
     finally:
         doc.close()
 
@@ -495,6 +498,7 @@ def _process_pdf(file_content: bytes, job_id: str, filename: str, temp_path: str
         "tables": tables,
         "figures": figures,
         "page_images": page_images,
+        "page_image_cache": page_image_cache,
     }
 
 
