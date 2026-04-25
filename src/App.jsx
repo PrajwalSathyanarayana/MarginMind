@@ -102,7 +102,7 @@ export default function App() {
   const [parsedContent,   setParsedContent]   = useState({ pages: [], tables: [], figures: [] });
   const [pdfFile,         setPdfFile]         = useState(null);
   const [detectionResult, setDetectionResult] = useState(null);  // ← inside App ✅
-
+  const [isScanned, setIsScanned] = useState(false);
   const canEvaluate = questionnaireFile && submissionFile && !loading;
 
   // ── Run evaluation using same file for both Q and A ───────────────────────
@@ -137,76 +137,103 @@ export default function App() {
 
   // ── Q&A Evaluation with separate question paper ───────────────────────────
 const handleEvaluate = async () => {
-  if (!questionnaireFile || !submissionFile) return;
-  setError(null);
-  setLoading(true);
-  setMode("qa");
+    if (!questionnaireFile || !submissionFile) return;
+    setError(null);
+    setLoading(true);
+    setMode("qa");
 
-  try {
-    // Step 1 — Upload submission to cache page images for PDFViewer
-    const uploadForm = new FormData();
-    uploadForm.append("file", submissionFile);
-    const uploadRes = await fetch("http://127.0.0.1:8000/upload", {
-      method: "POST",
-      body:   uploadForm,
-    });
-    if (!uploadRes.ok) throw new Error(`Upload error: ${uploadRes.status}`);
-    const uploadResult = await uploadRes.json();
+    try {
+      // Step 1 — Upload submission (triggers OCR if scanned)
+      const uploadForm = new FormData();
+      uploadForm.append("file", submissionFile);
+      const uploadRes = await fetch("http://127.0.0.1:8000/upload", {
+        method: "POST",
+        body:   uploadForm,
+      });
+      if (!uploadRes.ok) throw new Error(`Upload error: ${uploadRes.status}`);
+      const uploadResult = await uploadRes.json();
 
-    // Step 2 — Run Q&A evaluation
-    const evalForm = new FormData();
-    evalForm.append("questionnaire", questionnaireFile);
-    evalForm.append("submission",    submissionFile);
-    const evalRes = await fetch("http://127.0.0.1:8000/text", {
-      method: "POST",
-      body:   evalForm,
-    });
-    if (!evalRes.ok) throw new Error(`Evaluation error: ${evalRes.status}`);
-    const evalResult = await evalRes.json();
+      setPdfFile(submissionFile);
 
-    // Step 3 — Convert text evaluations to PDFViewer annotation format
-    const annotations = [];
-    let annIndex = 1;
-    for (const evaluation of (evalResult.evaluations || [])) {
-      for (const item of (evaluation.feedback || [])) {
-        if (!item.bbox) continue;
-        const bbox = item.bbox;
-        annotations.push({
-          id:          `qa-ann-${annIndex++}`,
-          page:        bbox.page || 1,
-          questionLabel: evaluation.qa_pair_id || `Q${evaluation.question_number}`,
-          bbox: {
-            x:      bbox.x0      || 0.05,
-            y:      bbox.y0      || 0.05,
-            width:  (bbox.x1 - bbox.x0) || 0.9,
-            height: (bbox.y1 - bbox.y0) || 0.04,
-          },
-          region_type:  item.criterion || "answer",
-          feedback:     item.comment   || "",
-          confidence:   item.confidence || item.score || 0.75,
-          needs_review: (item.confidence || 0) < 0.6,
-          score:        item.score,
+      // Step 2 — Check if scanned/OCR document
+      const isScanned = uploadResult.is_scanned || uploadResult.ocr_pipeline;
+      setIsScanned(isScanned);
+
+      if (isScanned) {
+        // ── OCR PATH: use annotations already generated during /upload ──
+        const fbRes = await fetch(
+          `http://127.0.0.1:8000/feedback/${uploadResult.job_id}`
+        );
+        if (!fbRes.ok) throw new Error(`Feedback error: ${fbRes.status}`);
+        const fbData = await fbRes.json();
+
+        setJobResult({
+          ...uploadResult,
+          submission_filename:    submissionFile.name,
+          questionnaire_filename: questionnaireFile.name,
+          question_count:         fbData.annotations?.length || 0,
+          needs_review_count:     fbData.annotations?.filter(a => a.needs_review).length || 0,
         });
+
+        // Use OCR annotations directly — already have bboxes
+        setAnnotations(fbData.annotations || []);
+        setEvaluations([]);
+
+      } else {
+        // ── TYPED TEXT PATH: call /text for Q&A evaluation ────────────
+        const evalForm = new FormData();
+        evalForm.append("questionnaire", questionnaireFile);
+        evalForm.append("submission",    submissionFile);
+        const evalRes = await fetch("http://127.0.0.1:8000/text", {
+          method: "POST",
+          body:   evalForm,
+        });
+        if (!evalRes.ok) throw new Error(`Evaluation error: ${evalRes.status}`);
+        const evalResult = await evalRes.json();
+
+        // Convert text evaluations to PDFViewer annotation format
+        const annotations = [];
+        let annIndex = 1;
+        for (const evaluation of (evalResult.evaluations || [])) {
+          for (const item of (evaluation.feedback || [])) {
+            if (!item.bbox) continue;
+            const bbox = item.bbox;
+            annotations.push({
+              id:            `qa-ann-${annIndex++}`,
+              page:          bbox.page || 1,
+              questionLabel: evaluation.qa_pair_id || `Q${evaluation.question_number}`,
+              bbox: {
+                x:      bbox.x0      || 0.05,
+                y:      bbox.y0      || 0.05,
+                width:  (bbox.x1 - bbox.x0) || 0.9,
+                height: (bbox.y1 - bbox.y0) || 0.04,
+              },
+              region_type:  item.criterion || "answer",
+              feedback:     item.comment   || "",
+              confidence:   item.confidence || item.score || 0.75,
+              needs_review: (item.confidence || 0) < 0.6,
+              score:        item.score,
+            });
+          }
+        }
+
+        setJobResult({
+          ...evalResult,
+          job_id:      uploadResult.job_id,
+          page_count:  uploadResult.page_count,
+        });
+        setEvaluations(evalResult.evaluations || []);
+        setAnnotations(annotations);
       }
+
+    } catch (err) {
+      setError(`Evaluation failed: ${err.message}`);
+      setMode(null);
+      setPdfFile(null);
+    } finally {
+      setLoading(false);
     }
-
-    // Step 4 — Set all state
-    setPdfFile(submissionFile);
-    setJobResult({
-      ...evalResult,
-      job_id:      uploadResult.job_id,   // ← use upload job_id for page images
-      page_count:  uploadResult.page_count,
-    });
-    setEvaluations(evalResult.evaluations || []);
-    setAnnotations(annotations);
-
-  } catch (err) {
-    setError(`Evaluation failed: ${err.message}`);
-    setMode(null);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   // ── Analyze submission only — with auto question detection ────────────────
   const handleAnalyze = async () => {
@@ -267,6 +294,7 @@ const handleEvaluate = async () => {
     setQuestionnaireFile(null);
     setSubmissionFile(null);
     setLoading(false);
+
     setError(null);
     setMode(null);
     setJobResult(null);
@@ -275,6 +303,7 @@ const handleEvaluate = async () => {
     setParsedContent({ pages: [], tables: [], figures: [] });
     setPdfFile(null);
     setDetectionResult(null);
+    setIsScanned(false);
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -393,7 +422,9 @@ const handleEvaluate = async () => {
                   <span style={{ color: "#9a9888", marginLeft: "8px" }}>vs</span>
                   <strong style={{ marginLeft: "8px" }}>{jobResult.questionnaire_filename}</strong>
                   <span style={{ color: "#9a9888", marginLeft: "12px" }}>
-                    {jobResult.question_count} questions evaluated
+                    {isScanned
+                    ? `${jobResult.question_count || annotations.length} regions analyzed via OCR`
+                    : `${jobResult.question_count} questions evaluated`}
                     {jobResult.needs_review_count > 0 &&
                       ` · ${jobResult.needs_review_count} flagged for review`}
                   </span>

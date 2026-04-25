@@ -36,11 +36,30 @@ async def upload_pdf(file: UploadFile = File(...)):
 
     # Process with diagrams/tables modality
     result = process_diagrams(content, job_id, file.filename, file.content_type or "")
+
+    # ── Auto-route to OCR if scanned/handwritten detected ─────────────
+    # diagrams_tables.py sets is_scanned=True when avg chars/page < 50
+    # Also triggers for direct image uploads (phone photos)
+    if result.get("is_scanned") or result.get("document_type") == "image":
+        try:
+            from Modal.ocr import process as process_ocr
+            ocr_result = process_ocr(
+                file_content  = content,
+                job_id        = job_id,
+                filename      = file.filename,
+                content_type  = file.content_type or "",
+            )
+            # Keep page_image_cache from diagrams pipeline (already rendered)
+            ocr_result["page_image_cache"] = result.get("page_image_cache", {})
+            result = ocr_result
+        except Exception as e:
+            # OCR failed — fall back to diagrams result, log the error
+            result["ocr_error"] = str(e)
+            print(f"OCR pipeline failed, falling back: {e}")
+
     job_store[job_id] = result
 
     # ── Auto-detect if submission contains questions ───────────────────
-    # Runs on every PDF upload so frontend knows whether to ask
-    # for a questionnaire or proceed directly to evaluation
     question_detection = {"has_questions": False, "confidence": 0.0,
                           "verdict": "uncertain", "extracted_questions": [],
                           "reasoning": "", "detected_question_count": 0}
@@ -55,21 +74,17 @@ async def upload_pdf(file: UploadFile = File(...)):
                 tmp_path = tmp.name
             try:
                 question_detection = detect_questions_in_submission(tmp_path)
-                # After question_detection runs, add this correction
-                if(
+                if (
                     question_detection.get("has_questions") and
                     len(question_detection.get("extracted_questions", [])) == 0
-                    ):
-                # Gemini detected questions but regex couldn't extract them
-                # Treat as answers_only and ask for questionnaire
-                    question_detection["verdict"]      = "answers_only"
+                ):
+                    question_detection["verdict"]       = "answers_only"
                     question_detection["has_questions"] = False
-                    question_detection["reasoning"]    = (
-                        question_detection.get("reasoning", "") + 
+                    question_detection["reasoning"]     = (
+                        question_detection.get("reasoning", "") +
                         " Questions detected but could not be extracted automatically — "
                         "please upload the question paper separately."
-                        )
-                
+                    )
             finally:
                 os.unlink(tmp_path)
         except Exception as e:
@@ -86,8 +101,8 @@ async def upload_pdf(file: UploadFile = File(...)):
         "page_count":    result["page_count"],
         "table_count":   result["table_count"],
         "figure_count":  result.get("figure_count", 0),
-
-        # Frontend uses these to decide next step
+        "is_scanned":    result.get("is_scanned", False),
+        "ocr_pipeline":  result.get("ocr_pipeline", False),
         "question_detection": question_detection,
     }
 

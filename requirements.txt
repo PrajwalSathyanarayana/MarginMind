@@ -12,7 +12,7 @@ python-dotenv
 google-cloud-storage
 google-cloud-firestore
 google-cloud-tasks
-google.generativeai
+google-genai
 rapidfuzz
 langgraph
 langchain-google-genai

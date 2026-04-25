@@ -202,8 +202,49 @@ const scrollCardIntoView = useCallback((annId) => {
                     </span>
                   </div>
                   <p style={styles.feedbackText}>{ann.feedback}</p>
-                  {ann.needs_review && (
-                    <div style={styles.reviewFlag}>⚠ Needs Review</div>
+
+                  {/* Diagram element breakdown — only for visual regions */}
+                  {(ann.elements_present?.length > 0 ||
+                    ann.elements_missing?.length > 0 ||
+                    ann.elements_incorrect?.length > 0) && (
+                    <div style={{ marginTop: "8px" }}>
+                      {ann.elements_present?.map((el, i) => (
+                        <div key={i} style={{
+                          fontSize: "0.72rem", color: "#166534",
+                          display: "flex", gap: "4px", marginBottom: "2px"
+                        }}>
+                          <span>✓</span><span>{el}</span>
+                        </div>
+                      ))}
+                      {ann.elements_incorrect?.map((el, i) => (
+                        <div key={i} style={{
+                          fontSize: "0.72rem", color: "#92400e",
+                          display: "flex", gap: "4px", marginBottom: "2px"
+                        }}>
+                          <span>⚠</span><span>{el}</span>
+                        </div>
+                      ))}
+                      {ann.elements_missing?.map((el, i) => (
+                        <div key={i} style={{
+                          fontSize: "0.72rem", color: "#991b1b",
+                          display: "flex", gap: "4px", marginBottom: "2px"
+                        }}>
+                          <span>✗</span><span>{el}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Quality warning */}
+                  {ann.quality_warning && (
+                    <div style={{
+                      marginTop: "6px", fontSize: "0.68rem",
+                      color: "#92400e", background: "#fef3c7",
+                      border: "1px solid #fde68a", borderRadius: "4px",
+                      padding: "3px 8px",
+                    }}>
+                      ⚠ {ann.quality_warning}
+                    </div>
                   )}
                 </div>
               );
