@@ -42,14 +42,15 @@ from dotenv import load_dotenv
 load_dotenv()  # Load .env file
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL   = os.getenv("GEMINI_MODEL", " ")
 
 try:
     llm = ChatGoogleGenerativeAI(
-        model="gemini-3.1-flash-lite-preview",
+        model=GEMINI_MODEL,
         google_api_key=GEMINI_API_KEY,
         temperature=0
     )
-    
+
     response = llm.invoke("Say 'API works!'")
     print(f"Response: {response.content}")
     print("✓ Gemini API is working!")
@@ -331,7 +332,7 @@ def create_batch_evaluation_chain():
         return None
     
     llm = ChatGoogleGenerativeAI(
-        model="gemini-3.1-flash-lite-preview",
+        model=GEMINI_MODEL,
         google_api_key=GEMINI_API_KEY,
         temperature=0.3
     )
@@ -695,7 +696,7 @@ def detect_questions_in_submission(pdf_path: str) -> dict:
 
     try:
         llm = ChatGoogleGenerativeAI(
-            model="gemini-3.1-flash-lite-preview",
+            model=GEMINI_MODEL,
             google_api_key=GEMINI_API_KEY,
             temperature=0,
         )
