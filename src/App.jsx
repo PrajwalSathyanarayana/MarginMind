@@ -103,6 +103,7 @@ export default function App() {
   const [pdfFile,         setPdfFile]         = useState(null);
   const [detectionResult, setDetectionResult] = useState(null);  // ← inside App ✅
   const [isScanned, setIsScanned] = useState(false);
+  const [evalProgress, setEvalProgress] = useState({ percent: 0, message: "" });
   const canEvaluate = questionnaireFile && submissionFile && !loading;
 
   // ── Run evaluation using same file for both Q and A ───────────────────────
@@ -141,9 +142,11 @@ const handleEvaluate = async () => {
     setError(null);
     setLoading(true);
     setMode("qa");
+    setEvalProgress({ percent: 5, message: "Preparing upload…" });
 
     try {
       // Step 1 — Upload submission (triggers OCR if scanned)
+      setEvalProgress({ percent: 15, message: "Uploading student submission…" });
       const uploadForm = new FormData();
       uploadForm.append("file", submissionFile);
       const uploadRes = await fetch("http://127.0.0.1:8000/upload", {
@@ -154,6 +157,7 @@ const handleEvaluate = async () => {
       const uploadResult = await uploadRes.json();
 
       setPdfFile(submissionFile);
+      setEvalProgress({ percent: 35, message: "Analyzing document type…" });
 
       // Step 2 — Check if scanned/OCR document
       const isScanned = uploadResult.is_scanned || uploadResult.ocr_pipeline;
@@ -161,12 +165,14 @@ const handleEvaluate = async () => {
 
       if (isScanned) {
         // ── OCR PATH: use annotations already generated during /upload ──
+        setEvalProgress({ percent: 60, message: "Retrieving OCR annotations…" });
         const fbRes = await fetch(
           `http://127.0.0.1:8000/feedback/${uploadResult.job_id}`
         );
         if (!fbRes.ok) throw new Error(`Feedback error: ${fbRes.status}`);
         const fbData = await fbRes.json();
 
+        setEvalProgress({ percent: 90, message: "Processing results…" });
         setJobResult({
           ...uploadResult,
           submission_filename:    submissionFile.name,
@@ -181,6 +187,7 @@ const handleEvaluate = async () => {
 
       } else {
         // ── TYPED TEXT PATH: call /text for Q&A evaluation ────────────
+        setEvalProgress({ percent: 50, message: "Running Q&A evaluation with Gemini…" });
         const evalForm = new FormData();
         evalForm.append("questionnaire", questionnaireFile);
         evalForm.append("submission",    submissionFile);
@@ -190,6 +197,8 @@ const handleEvaluate = async () => {
         });
         if (!evalRes.ok) throw new Error(`Evaluation error: ${evalRes.status}`);
         const evalResult = await evalRes.json();
+
+        setEvalProgress({ percent: 85, message: "Processing evaluation results…" });
 
         // Convert text evaluations to PDFViewer annotation format
         const annotations = [];
@@ -217,6 +226,7 @@ const handleEvaluate = async () => {
           }
         }
 
+        setEvalProgress({ percent: 95, message: "Finalizing…" });
         setJobResult({
           ...evalResult,
           job_id:      uploadResult.job_id,
@@ -231,6 +241,7 @@ const handleEvaluate = async () => {
       setMode(null);
       setPdfFile(null);
     } finally {
+      setEvalProgress({ percent: 100, message: "Complete!" });
       setLoading(false);
     }
   };
@@ -398,9 +409,17 @@ const handleEvaluate = async () => {
             <div className="loader" />
             <div className="loading-label">
               {mode === "qa"
-                ? "Running Q&A evaluation with Gemini…"
+                ? evalProgress.message || "Running Q&A evaluation with Gemini…"
                 : "Analyzing document and detecting questions…"}
             </div>
+            {mode === "qa" && (
+              <div className="eval-progress-bar-wrap">
+                <div
+                  className="eval-progress-bar-fill"
+                  style={{ width: `${evalProgress.percent}%` }}
+                />
+              </div>
+            )}
           </div>
         </div>
       )}
