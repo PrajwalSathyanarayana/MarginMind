@@ -1032,6 +1032,22 @@
   font-weight: 400;
 }
 
+.eval-progress-bar-wrap {
+  width: 280px;
+  height: 6px;
+  background: var(--border);
+  border-radius: 99px;
+  margin: 14px auto 0;
+  overflow: hidden;
+}
+
+.eval-progress-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 99px;
+  transition: width 0.4s ease;
+}
+
 /* ========== RESPONSIVE ========== */
 @media (max-width: 540px) {
   .app {
