@@ -3,6 +3,34 @@ import "./App.css";
 import PDFViewer from "./components/PDFViewer";
 import ParsedContent from "./components/ParsedContent";
 
+// ── Icons ──────────────────────────────────────────────────────────────────
+function UploadIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+      <polyline points="17 8 12 3 7 8" />
+      <line x1="12" y1="3" x2="12" y2="15" />
+    </svg>
+  );
+}
+
+function FileIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+    </svg>
+  );
+}
+
+// QA evaluation steps for the loading checklist
+const QA_STEPS = [
+  { label: "Upload student submission", doneAt: 35 },
+  { label: "Analyze document type",     doneAt: 55 },
+  { label: "Run Q&A evaluation",        doneAt: 88 },
+  { label: "Process results",           doneAt: 98 },
+];
+
 // ── File drop zone component ───────────────────────────────────────────────
 function FileDropZone({ label, desc, file, onFile, accept = "application/pdf" }) {
   const [dragover, setDragover] = useState(false);
@@ -11,13 +39,9 @@ function FileDropZone({ label, desc, file, onFile, accept = "application/pdf" })
   const handleFile = (f) => { if (!f) return; onFile(f); };
 
   return (
-    <div style={{ flex: 1, minWidth: 0 }}>
-      <div style={{ fontWeight: "700", fontSize: "0.9rem", color: "#1a1a2e", marginBottom: "4px" }}>
-        {label}
-      </div>
-      <div style={{ fontSize: "0.78rem", color: "#9a9888", marginBottom: "10px" }}>
-        {desc}
-      </div>
+    <div className="upload-zone-wrap">
+      <div className="upload-zone-field-label">{label}</div>
+      <div className="upload-zone-field-desc">{desc}</div>
       <input
         ref={(el) => (ref.current = el)}
         type="file"
@@ -27,59 +51,40 @@ function FileDropZone({ label, desc, file, onFile, accept = "application/pdf" })
       />
       {!file ? (
         <div
+          className={`upload-zone${dragover ? " dragover" : ""}`}
           onClick={() => ref.current?.click()}
           onDragOver={(e) => { e.preventDefault(); setDragover(true); }}
           onDragLeave={() => setDragover(false)}
           onDrop={(e) => { e.preventDefault(); setDragover(false); handleFile(e.dataTransfer.files?.[0]); }}
-          style={{
-            border: `2px dashed ${dragover ? "#7c5cfc" : "#d0cec6"}`,
-            borderRadius: "10px", padding: "32px 20px",
-            textAlign: "center", cursor: "pointer",
-            background: dragover ? "#f5f3ff" : "#fafaf7",
-            transition: "all 0.2s",
-          }}
         >
-          <div style={{ fontSize: "1.8rem", marginBottom: "8px" }}>📄</div>
-          <div style={{ fontSize: "0.82rem", color: "#6b6960", marginBottom: "6px" }}>
-            Drop PDF here or click to browse
+          <div className="upload-icon-wrap">
+            <UploadIcon />
           </div>
-          <button
-            onClick={(e) => { e.stopPropagation(); ref.current?.click(); }}
-            style={{
-              marginTop: "8px", padding: "7px 18px",
-              background: "#1a1a2e", color: "#fff",
-              border: "none", borderRadius: "6px",
-              fontSize: "0.8rem", cursor: "pointer",
-            }}
-          >
-            Browse File
-          </button>
+          <div className="upload-label">Drop PDF here</div>
+          <div className="upload-sublabel">or click to browse</div>
+          <div className="upload-btns">
+            <button
+              className="btn btn-dark btn-sm"
+              onClick={(e) => { e.stopPropagation(); ref.current?.click(); }}
+            >
+              Browse File
+            </button>
+          </div>
         </div>
       ) : (
-        <div style={{
-          border: "1px solid #4ade80", borderRadius: "10px",
-          padding: "16px 20px", background: "#f0fdf4",
-          display: "flex", alignItems: "center",
-          justifyContent: "space-between", gap: "12px",
-        }}>
-          <div>
-            <div style={{ fontSize: "0.85rem", fontWeight: "600", color: "#166534", marginBottom: "2px" }}>
-              ✓ {file.name}
-            </div>
-            <div style={{ fontSize: "0.72rem", color: "#9a9888" }}>
-              {(file.size / 1024).toFixed(0)} KB
-            </div>
+        <div className="file-preview">
+          <div className="file-preview-icon">
+            <FileIcon />
           </div>
-          <button
-            onClick={() => onFile(null)}
-            style={{
-              background: "none", border: "1px solid #d0cec6",
-              borderRadius: "6px", padding: "4px 10px",
-              fontSize: "0.75rem", cursor: "pointer", color: "#6b6960",
-            }}
-          >
-            Remove
-          </button>
+          <div className="file-preview-info">
+            <div className="file-preview-name">{file.name}</div>
+            <div className="file-preview-meta">{(file.size / 1024).toFixed(0)} KB · PDF</div>
+          </div>
+          <div className="file-preview-actions">
+            <button className="btn btn-ghost btn-sm" onClick={() => onFile(null)}>
+              Remove
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -101,13 +106,22 @@ export default function App() {
   const [annotations,     setAnnotations]     = useState([]);
   const [parsedContent,   setParsedContent]   = useState({ pages: [], tables: [], figures: [] });
   const [pdfFile,         setPdfFile]         = useState(null);
-  const [detectionResult, setDetectionResult] = useState(null);  // ← inside App ✅
-  const [isScanned, setIsScanned] = useState(false);
-  const [evalProgress, setEvalProgress] = useState({ percent: 0, message: "" });
+  const [detectionResult, setDetectionResult] = useState(null);
+  const [isScanned,       setIsScanned]       = useState(false);
+  const [evalProgress,    setEvalProgress]    = useState({ percent: 0, message: "" });
+
   const canEvaluate = questionnaireFile && submissionFile && !loading;
 
+  // Derive step index: 0=Upload, 1=Evaluate, 2=Results
+  const currentStep = (jobResult && !loading) ? 2 : loading ? 1 : 0;
+
+  // Average score across all evaluations
+  const avgScore = evaluations.length > 0
+    ? evaluations.reduce((s, e) => s + (e.overall_score || 0), 0) / evaluations.length
+    : null;
+
   // ── Run evaluation using same file for both Q and A ───────────────────────
-  const runSelfContainedEvaluation = async (uploadResult) => {  // ← inside App ✅
+  const runSelfContainedEvaluation = async (uploadResult) => {
     setMode("qa");
     setLoading(true);
     try {
@@ -123,7 +137,6 @@ export default function App() {
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
       const result = await res.json();
       setJobResult(result);
-      // Fallback: also check nested evaluations
       const evals = result.evaluations || result.qa_pairs || [];
       setEvaluations(evals);
       console.log("Evaluations received:", evals.length, evals);
@@ -137,7 +150,7 @@ export default function App() {
   };
 
   // ── Q&A Evaluation with separate question paper ───────────────────────────
-const handleEvaluate = async () => {
+  const handleEvaluate = async () => {
     if (!questionnaireFile || !submissionFile) return;
     setError(null);
     setLoading(true);
@@ -145,7 +158,6 @@ const handleEvaluate = async () => {
     setEvalProgress({ percent: 5, message: "Preparing upload…" });
 
     try {
-      // Step 1 — Upload submission (triggers OCR if scanned)
       setEvalProgress({ percent: 15, message: "Uploading student submission…" });
       const uploadForm = new FormData();
       uploadForm.append("file", submissionFile);
@@ -159,16 +171,12 @@ const handleEvaluate = async () => {
       setPdfFile(submissionFile);
       setEvalProgress({ percent: 35, message: "Analyzing document type…" });
 
-      // Step 2 — Check if scanned/OCR document
       const isScanned = uploadResult.is_scanned || uploadResult.ocr_pipeline;
       setIsScanned(isScanned);
 
       if (isScanned) {
-        // ── OCR PATH: use annotations already generated during /upload ──
         setEvalProgress({ percent: 60, message: "Retrieving OCR annotations…" });
-        const fbRes = await fetch(
-          `http://127.0.0.1:8000/feedback/${uploadResult.job_id}`
-        );
+        const fbRes = await fetch(`http://127.0.0.1:8000/feedback/${uploadResult.job_id}`);
         if (!fbRes.ok) throw new Error(`Feedback error: ${fbRes.status}`);
         const fbData = await fbRes.json();
 
@@ -180,13 +188,10 @@ const handleEvaluate = async () => {
           question_count:         fbData.annotations?.length || 0,
           needs_review_count:     fbData.annotations?.filter(a => a.needs_review).length || 0,
         });
-
-        // Use OCR annotations directly — already have bboxes
         setAnnotations(fbData.annotations || []);
         setEvaluations([]);
 
       } else {
-        // ── TYPED TEXT PATH: call /text for Q&A evaluation ────────────
         setEvalProgress({ percent: 50, message: "Running Q&A evaluation with Gemini…" });
         const evalForm = new FormData();
         evalForm.append("questionnaire", questionnaireFile);
@@ -200,7 +205,6 @@ const handleEvaluate = async () => {
 
         setEvalProgress({ percent: 85, message: "Processing evaluation results…" });
 
-        // Convert text evaluations to PDFViewer annotation format
         const annotations = [];
         let annIndex = 1;
         for (const evaluation of (evalResult.evaluations || [])) {
@@ -229,8 +233,8 @@ const handleEvaluate = async () => {
         setEvalProgress({ percent: 95, message: "Finalizing…" });
         setJobResult({
           ...evalResult,
-          job_id:      uploadResult.job_id,
-          page_count:  uploadResult.page_count,
+          job_id:     uploadResult.job_id,
+          page_count: uploadResult.page_count,
         });
         setEvaluations(evalResult.evaluations || []);
         setAnnotations(annotations);
@@ -263,29 +267,16 @@ const handleEvaluate = async () => {
       });
 
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
-      const result   = await res.json();
+      const result    = await res.json();
       const detection = result.question_detection || {};
 
-      if (
-        detection.has_questions &&
-        detection.verdict === "self_contained" &&
-        detection.confidence > 0.8
-      ) {
-        // Self-contained — evaluate directly
+      if (detection.has_questions && detection.verdict === "self_contained" && detection.confidence > 0.8) {
         setJobResult(result);
         await runSelfContainedEvaluation(result);
-
-      } else if (
-        !detection.has_questions &&
-        detection.verdict === "answers_only" &&
-        detection.confidence > 0.8
-      ) {
-        // Clearly answers only — prompt for questionnaire
+      } else if (!detection.has_questions && detection.verdict === "answers_only" && detection.confidence > 0.8) {
         setJobResult(result);
         setMode("needs_questionnaire");
-
       } else {
-        // Uncertain — ask user
         setJobResult(result);
         setDetectionResult(detection);
         setMode("uncertain");
@@ -305,7 +296,6 @@ const handleEvaluate = async () => {
     setQuestionnaireFile(null);
     setSubmissionFile(null);
     setLoading(false);
-
     setError(null);
     setMode(null);
     setJobResult(null);
@@ -323,9 +313,24 @@ const handleEvaluate = async () => {
 
       {/* HEADER */}
       <header className="app-header">
-        <h1>MarginMind</h1>
-        <p>Upload assignments to get AI-powered feedback.</p>
+        <div className="app-header-top">
+          <span className="app-logo-mark">M</span>
+          <h1>MarginMind</h1>
+        </div>
+        <p>AI-powered Q&amp;A grading for student submissions.</p>
       </header>
+
+      {/* STEP INDICATOR */}
+      <div className="steps">
+        {["Upload", "Evaluate", "Results"].map((label, i) => (
+          <div
+            key={i}
+            className={`step${currentStep === i ? " active" : ""}${currentStep > i ? " completed" : ""}`}
+          >
+            <span className="step-label">{i + 1}. {label}</span>
+          </div>
+        ))}
+      </div>
 
       {/* UPLOAD SECTION — hide once results are ready */}
       {!jobResult && !loading && (
@@ -333,11 +338,11 @@ const handleEvaluate = async () => {
           <div className="section-header">
             <h2 className="section-title">Upload Documents</h2>
             <p className="section-desc">
-              Upload both files for Q&A evaluation, or just the submission for document analysis.
+              Upload both files for Q&amp;A evaluation, or just the submission for document analysis.
             </p>
           </div>
 
-          <div style={{ display: "flex", gap: "20px", marginTop: "16px" }}>
+          <div className="upload-row">
             <FileDropZone
               label="📋 Question Paper"
               desc="Upload the question paper PDF (optional)"
@@ -352,19 +357,11 @@ const handleEvaluate = async () => {
             />
           </div>
 
-          <div style={{ marginTop: "20px", display: "flex", gap: "12px" }}>
+          <div className="upload-actions">
             <button
+              className="grade-btn"
               onClick={handleEvaluate}
               disabled={!canEvaluate}
-              style={{
-                flex: 1, padding: "12px 24px",
-                background: canEvaluate ? "#1a1a2e" : "#e8e6de",
-                color: canEvaluate ? "#fff" : "#9a9888",
-                border: "none", borderRadius: "8px",
-                fontSize: "0.9rem", fontWeight: "600",
-                cursor: canEvaluate ? "pointer" : "not-allowed",
-                transition: "all 0.2s",
-              }}
             >
               {canEvaluate
                 ? "⚡ Grade with Q&A Evaluation"
@@ -376,29 +373,13 @@ const handleEvaluate = async () => {
             </button>
 
             {submissionFile && !questionnaireFile && (
-              <button
-                onClick={handleAnalyze}
-                style={{
-                  padding: "12px 20px", background: "none",
-                  color: "#5b21b6", border: "1px solid #a78bfa",
-                  borderRadius: "8px", fontSize: "0.85rem",
-                  fontWeight: "600", cursor: "pointer",
-                }}
-              >
+              <button className="btn btn-ghost analyze-btn" onClick={handleAnalyze}>
                 Analyze Document Only
               </button>
             )}
           </div>
 
-          {error && (
-            <div style={{
-              marginTop: "12px", padding: "10px 14px",
-              background: "#3b1a1a", border: "1px solid #7f1d1d",
-              borderRadius: "6px", color: "#f87171", fontSize: "0.85rem",
-            }}>
-              {error}
-            </div>
-          )}
+          {error && <div className="error-box">{error}</div>}
         </div>
       )}
 
@@ -413,12 +394,26 @@ const handleEvaluate = async () => {
                 : "Analyzing document and detecting questions…"}
             </div>
             {mode === "qa" && (
-              <div className="eval-progress-bar-wrap">
-                <div
-                  className="eval-progress-bar-fill"
-                  style={{ width: `${evalProgress.percent}%` }}
-                />
-              </div>
+              <>
+                <div className="eval-progress-bar-wrap">
+                  <div
+                    className="eval-progress-bar-fill"
+                    style={{ width: `${evalProgress.percent}%` }}
+                  />
+                </div>
+                <div className="eval-steps">
+                  {QA_STEPS.map((step, i) => {
+                    const done   = evalProgress.percent > step.doneAt;
+                    const active = !done && (i === 0 || evalProgress.percent > QA_STEPS[i - 1].doneAt);
+                    return (
+                      <div key={i} className={`eval-step${done ? " done" : active ? " active" : ""}`}>
+                        <span className="eval-step-icon">{done ? "✓" : active ? "⟳" : "○"}</span>
+                        <span className="eval-step-label">{step.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -428,62 +423,41 @@ const handleEvaluate = async () => {
       {jobResult && !loading && (
         <>
           {/* Info bar */}
-          <div style={{
-            display: "flex", justifyContent: "space-between",
-            alignItems: "center", padding: "10px 16px",
-            background: "#f0efe9", border: "1px solid #e0ddd6",
-            borderRadius: "8px", marginTop: "16px",
-          }}>
-            <div style={{ fontSize: "0.85rem", color: "#3d3b30" }}>
+          <div className="result-info-bar">
+            <div className="result-info-meta">
               {mode === "qa" ? (
                 <>
-                  <strong>{jobResult.submission_filename}</strong>
-                  <span style={{ color: "#9a9888", marginLeft: "8px" }}>vs</span>
-                  <strong style={{ marginLeft: "8px" }}>{jobResult.questionnaire_filename}</strong>
-                  <span style={{ color: "#9a9888", marginLeft: "12px" }}>
+                  <span className="result-filename">{jobResult.submission_filename}</span>
+                  <span className="result-sep">vs</span>
+                  <span className="result-filename">{jobResult.questionnaire_filename}</span>
+                  <span className="result-detail">
                     {isScanned
-                    ? `${jobResult.question_count || annotations.length} regions analyzed via OCR`
-                    : `${jobResult.question_count} questions evaluated`}
-                    {jobResult.needs_review_count > 0 &&
-                      ` · ${jobResult.needs_review_count} flagged for review`}
+                      ? `${jobResult.question_count || annotations.length} regions · OCR`
+                      : `${jobResult.question_count} questions evaluated`}
+                    {jobResult.needs_review_count > 0 && ` · ${jobResult.needs_review_count} flagged`}
                   </span>
-                  {evaluations.length > 0 && (
-                    <span style={{
-                      marginLeft: "12px",
-                      fontFamily: "monospace", fontWeight: "700",
-                      fontSize: "0.85rem",
-                      color: (() => {
-                        const avg = evaluations.reduce((s, e) => s + (e.overall_score || 0), 0) / evaluations.length;
-                        return avg >= 0.7 ? "#166534" : avg >= 0.4 ? "#92400e" : "#991b1b";
-                      })(),
-                    }}>
-                      · Overall: {Math.round(
-                        evaluations.reduce((s, e) => s + (e.overall_score || 0), 0)
-                        / evaluations.length * 100
-                      )}%
-                    </span>
-                  )}
                 </>
               ) : (
                 <>
-                  <strong>{jobResult.filename}</strong>
-                  <span style={{ color: "#9a9888", marginLeft: "12px" }}>
+                  <span className="result-filename">{jobResult.filename}</span>
+                  <span className="result-detail">
                     {jobResult.page_count} page{jobResult.page_count !== 1 ? "s" : ""}
-                    {jobResult.table_count > 0 &&
-                      ` · ${jobResult.table_count} table${jobResult.table_count !== 1 ? "s" : ""}`}
-                    {jobResult.figure_count > 0 &&
-                      ` · ${jobResult.figure_count} figure${jobResult.figure_count !== 1 ? "s" : ""}`}
+                    {jobResult.table_count > 0 && ` · ${jobResult.table_count} table${jobResult.table_count !== 1 ? "s" : ""}`}
+                    {jobResult.figure_count > 0 && ` · ${jobResult.figure_count} figure${jobResult.figure_count !== 1 ? "s" : ""}`}
                   </span>
                 </>
               )}
             </div>
-            <button onClick={handleReset} style={{
-              background: "none", border: "1px solid #d0cec6",
-              borderRadius: "6px", padding: "5px 12px",
-              fontSize: "0.8rem", cursor: "pointer", color: "#6b6960",
-            }}>
-              ← Start Over
-            </button>
+            <div className="result-info-right">
+              {avgScore !== null && (
+                <div className={`score-pill ${avgScore >= 0.7 ? "good" : avgScore >= 0.4 ? "avg" : "poor"}`}>
+                  {Math.round(avgScore * 100)}%
+                </div>
+              )}
+              <button className="btn btn-ghost btn-sm" onClick={handleReset}>
+                ← Start Over
+              </button>
+            </div>
           </div>
 
           {/* UNCERTAIN DETECTION */}
@@ -505,14 +479,7 @@ const handleEvaluate = async () => {
                 Verdict: {detectionResult.verdict}
               </p>
               <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-                <button
-                  onClick={() => runSelfContainedEvaluation(jobResult)}
-                  style={{
-                    padding: "10px 20px", background: "#1a1a2e",
-                    color: "#fff", border: "none", borderRadius: "8px",
-                    fontSize: "0.85rem", fontWeight: "600", cursor: "pointer",
-                  }}
-                >
+                <button onClick={() => runSelfContainedEvaluation(jobResult)} className="btn btn-dark">
                   ✓ Evaluate without question paper
                 </button>
                 <button
@@ -556,12 +523,8 @@ const handleEvaluate = async () => {
                 <button
                   onClick={handleEvaluate}
                   disabled={loading}
-                  style={{
-                    marginTop: "16px", padding: "10px 24px",
-                    background: "#1a1a2e", color: "#fff",
-                    border: "none", borderRadius: "8px",
-                    fontSize: "0.85rem", fontWeight: "600", cursor: "pointer",
-                  }}
+                  className="btn btn-dark"
+                  style={{ marginTop: "16px" }}
                 >
                   ⚡ Grade with Q&A Evaluation
                 </button>
@@ -585,14 +548,6 @@ const handleEvaluate = async () => {
           {/* Q&A PDF VIEWER WITH OVERLAYS */}
           {mode === "qa" && pdfFile && jobResult?.job_id && (
             <div style={{ marginTop: "24px" }}>
-              <div style={{
-                fontWeight: "700", fontSize: "0.85rem",
-                color: "#3d3b30", marginBottom: "8px",
-                textTransform: "uppercase", letterSpacing: "0.08em",
-                fontFamily: "monospace",
-              }}>
-                📄 Annotated Submission
-              </div>
               <PDFViewer
                 pdfFile={pdfFile}
                 annotations={annotations}
