@@ -24,6 +24,31 @@ else:
     _client = None
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite-preview")
 
+_RETRYABLE = ("502", "503", "429", "bad gateway", "rate limit",
+              "resource exhausted", "overloaded", "try again")
+
+def _gemini_generate_with_retry(contents, max_attempts: int = 4) -> str:
+    """Gemini generate_content with exponential backoff on transient errors."""
+    import time
+    last_exc = None
+    for attempt in range(max_attempts):
+        try:
+            response = _client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=contents,
+            )
+            return response.text.strip()
+        except Exception as exc:
+            last_exc = exc
+            msg = str(exc).lower()
+            if any(kw in msg for kw in _RETRYABLE) and attempt < max_attempts - 1:
+                wait = 2 ** attempt
+                print(f"[diagrams_tables] Gemini transient error ({exc}), retry {attempt+1}/{max_attempts-1} in {wait}s…")
+                time.sleep(wait)
+            else:
+                raise
+    raise last_exc
+
 try:
     import numpy as np
 except ImportError:
@@ -631,10 +656,7 @@ Rules:
 """
 
             try:
-                response      = _client.models.generate_content(
-                    model=GEMINI_MODEL, contents=text_prompt
-                )
-                response_text = response.text.strip()
+                response_text = _gemini_generate_with_retry(text_prompt)
 
                 # Strip markdown code fences if present
                 if response_text.startswith("```"):
@@ -724,10 +746,7 @@ Return ONLY the JSON object, no markdown.
 """
 
             try:
-                response      = _client.models.generate_content(
-                    model=GEMINI_MODEL, contents=table_prompt
-                )
-                response_text = response.text.strip()
+                response_text = _gemini_generate_with_retry(table_prompt)
 
                 if response_text.startswith("```"):
                     response_text = re.sub(r"```(?:json)?", "", response_text).strip("` \n")
@@ -788,11 +807,7 @@ Respond ONLY with a valid JSON object:
 Return ONLY the JSON object, no markdown.
 """
 
-                response      = _client.models.generate_content(
-                    model=GEMINI_MODEL,
-                    contents=[image_part, figure_prompt],
-                )
-                response_text = response.text.strip()
+                response_text = _gemini_generate_with_retry([image_part, figure_prompt])
 
                 if response_text.startswith("```"):
                     response_text = re.sub(r"```(?:json)?", "", response_text).strip("` \n")
@@ -848,10 +863,11 @@ Return ONLY the JSON object, no markdown.
             }
         ]
     
-def process(file_content: bytes, job_id: str, filename: str, content_type: str = "") -> dict:
+def process(file_content: bytes, job_id: str, filename: str, content_type: str = "", generate_feedback: bool = True) -> dict:
     """
     Main entry point for the Diagrams/Tables modality.
     Called by app.py when a document is uploaded.
+    Set generate_feedback=False to skip Gemini annotation (used when OCR will run next).
     """
     is_pdf = (content_type or "").lower() == "application/pdf" or \
              filename.lower().endswith(".pdf")
@@ -867,8 +883,10 @@ def process(file_content: bytes, job_id: str, filename: str, content_type: str =
         else:
             result = _process_image(file_content, job_id, filename)
 
-        # Generate real Gemini feedback for all extracted regions
-        result["annotations"] = _generate_gemini_feedback(result, job_id)
+        if generate_feedback:
+            result["annotations"] = _generate_gemini_feedback(result, job_id)
+        else:
+            result["annotations"] = []
         return result
 
     finally:
