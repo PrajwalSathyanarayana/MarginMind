@@ -25,10 +25,10 @@ function FileIcon() {
 
 // QA evaluation steps for the loading checklist
 const QA_STEPS = [
-  { label: "Upload student submission", doneAt: 35 },
-  { label: "Analyze document type",     doneAt: 55 },
-  { label: "Run Q&A evaluation",        doneAt: 88 },
-  { label: "Process results",           doneAt: 98 },
+  { label: "Uploading student submission", doneAt: 12 },
+  { label: "Analyzing document structure", doneAt: 55 },
+  { label: "Running OCR / Q&A evaluation", doneAt: 88 },
+  { label: "Processing results",           doneAt: 98 },
 ];
 
 // ── File drop zone component ───────────────────────────────────────────────
@@ -149,16 +149,41 @@ export default function App() {
     }
   };
 
+  // ── Poll /status until done or error ─────────────────────────────────────
+  const pollUntilDone = (jobId) =>
+    new Promise((resolve, reject) => {
+      const id = setInterval(async () => {
+        try {
+          const res  = await fetch(`http://127.0.0.1:8000/status/${jobId}`);
+          const data = await res.json();
+          setEvalProgress({
+            percent: data.progress_percent || 0,
+            message: data.progress_message || "Processing…",
+          });
+          if (data.status === "done") {
+            clearInterval(id);
+            resolve(data);
+          } else if (data.status === "error") {
+            clearInterval(id);
+            reject(new Error(data.error || "Processing failed"));
+          }
+        } catch (e) {
+          clearInterval(id);
+          reject(e);
+        }
+      }, 2500);
+    });
+
   // ── Q&A Evaluation with separate question paper ───────────────────────────
   const handleEvaluate = async () => {
     if (!questionnaireFile || !submissionFile) return;
     setError(null);
     setLoading(true);
     setMode("qa");
-    setEvalProgress({ percent: 5, message: "Preparing upload…" });
+    setEvalProgress({ percent: 5, message: "Uploading student submission…" });
 
     try {
-      setEvalProgress({ percent: 15, message: "Uploading student submission…" });
+      // POST /upload — returns immediately with job_id
       const uploadForm = new FormData();
       uploadForm.append("file", submissionFile);
       const uploadRes = await fetch("http://127.0.0.1:8000/upload", {
@@ -166,23 +191,26 @@ export default function App() {
         body:   uploadForm,
       });
       if (!uploadRes.ok) throw new Error(`Upload error: ${uploadRes.status}`);
-      const uploadResult = await uploadRes.json();
+      const { job_id } = await uploadRes.json();
 
+      setEvalProgress({ percent: 10, message: "Processing document on server…" });
       setPdfFile(submissionFile);
-      setEvalProgress({ percent: 35, message: "Analyzing document type…" });
 
-      const isScanned = uploadResult.is_scanned || uploadResult.ocr_pipeline;
-      setIsScanned(isScanned);
+      // Poll until the background thread finishes
+      const statusData = await pollUntilDone(job_id);
 
-      if (isScanned) {
-        setEvalProgress({ percent: 60, message: "Retrieving OCR annotations…" });
-        const fbRes = await fetch(`http://127.0.0.1:8000/feedback/${uploadResult.job_id}`);
+      const scanned = statusData.is_scanned || statusData.ocr_pipeline;
+      setIsScanned(scanned);
+
+      if (scanned) {
+        setEvalProgress({ percent: 98, message: "Loading annotations…" });
+        const fbRes = await fetch(`http://127.0.0.1:8000/feedback/${job_id}`);
         if (!fbRes.ok) throw new Error(`Feedback error: ${fbRes.status}`);
         const fbData = await fbRes.json();
 
-        setEvalProgress({ percent: 90, message: "Processing results…" });
         setJobResult({
-          ...uploadResult,
+          ...statusData,
+          job_id,
           submission_filename:    submissionFile.name,
           questionnaire_filename: questionnaireFile.name,
           question_count:         fbData.annotations?.length || 0,
@@ -203,21 +231,21 @@ export default function App() {
         if (!evalRes.ok) throw new Error(`Evaluation error: ${evalRes.status}`);
         const evalResult = await evalRes.json();
 
-        setEvalProgress({ percent: 85, message: "Processing evaluation results…" });
+        setEvalProgress({ percent: 90, message: "Processing evaluation results…" });
 
-        const annotations = [];
+        const anns = [];
         let annIndex = 1;
         for (const evaluation of (evalResult.evaluations || [])) {
           for (const item of (evaluation.feedback || [])) {
             if (!item.bbox) continue;
             const bbox = item.bbox;
-            annotations.push({
+            anns.push({
               id:            `qa-ann-${annIndex++}`,
               page:          bbox.page || 1,
               questionLabel: evaluation.qa_pair_id || `Q${evaluation.question_number}`,
               bbox: {
-                x:      bbox.x0      || 0.05,
-                y:      bbox.y0      || 0.05,
+                x:      bbox.x0            || 0.05,
+                y:      bbox.y0            || 0.05,
                 width:  (bbox.x1 - bbox.x0) || 0.9,
                 height: (bbox.y1 - bbox.y0) || 0.04,
               },
@@ -230,14 +258,13 @@ export default function App() {
           }
         }
 
-        setEvalProgress({ percent: 95, message: "Finalizing…" });
         setJobResult({
           ...evalResult,
-          job_id:     uploadResult.job_id,
-          page_count: uploadResult.page_count,
+          job_id,
+          page_count: statusData.page_count,
         });
         setEvaluations(evalResult.evaluations || []);
-        setAnnotations(annotations);
+        setAnnotations(anns);
       }
 
     } catch (err) {
@@ -256,6 +283,7 @@ export default function App() {
     setError(null);
     setLoading(true);
     setPdfFile(submissionFile);
+    setEvalProgress({ percent: 5, message: "Uploading document…" });
 
     try {
       const formData = new FormData();
@@ -265,19 +293,23 @@ export default function App() {
         method: "POST",
         body:   formData,
       });
-
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
-      const result    = await res.json();
+      const { job_id } = await res.json();
+
+      setEvalProgress({ percent: 10, message: "Analyzing document…" });
+
+      // Poll until background processing finishes
+      const result    = await pollUntilDone(job_id);
       const detection = result.question_detection || {};
 
       if (detection.has_questions && detection.verdict === "self_contained" && detection.confidence > 0.8) {
-        setJobResult(result);
-        await runSelfContainedEvaluation(result);
+        setJobResult({ ...result, job_id });
+        await runSelfContainedEvaluation({ ...result, job_id });
       } else if (!detection.has_questions && detection.verdict === "answers_only" && detection.confidence > 0.8) {
-        setJobResult(result);
+        setJobResult({ ...result, job_id });
         setMode("needs_questionnaire");
       } else {
-        setJobResult(result);
+        setJobResult({ ...result, job_id });
         setDetectionResult(detection);
         setMode("uncertain");
       }
