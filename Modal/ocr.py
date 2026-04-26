@@ -70,6 +70,39 @@ def _bytes_to_base64_url(image_bytes: bytes, mime: str = "image/png") -> str:
     return f"data:{mime};base64,{encoded}"
 
 
+_RETRYABLE = ("502", "503", "429", "bad gateway", "rate limit",
+              "resource exhausted", "overloaded", "try again")
+
+def _is_retryable(exc: Exception) -> bool:
+    msg = str(exc).lower()
+    return any(kw in msg for kw in _RETRYABLE)
+
+
+def _gemini_generate_with_retry(contents, max_attempts: int = 4) -> str:
+    """
+    Call Gemini generate_content with exponential backoff on transient errors
+    (502, 503, 429, resource exhausted). Raises on permanent failure.
+    """
+    import time
+    last_exc = None
+    for attempt in range(max_attempts):
+        try:
+            response = _client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=contents,
+            )
+            return response.text.strip()
+        except Exception as exc:
+            last_exc = exc
+            if _is_retryable(exc) and attempt < max_attempts - 1:
+                wait = 2 ** attempt  # 1s, 2s, 4s
+                print(f"[ocr] Gemini transient error ({exc}), retry {attempt+1}/{max_attempts-1} in {wait}s…")
+                time.sleep(wait)
+            else:
+                raise
+    raise last_exc
+
+
 def _call_gemini_vision(image_bytes: bytes, prompt: str) -> Optional[dict]:
     """
     Send a page image to Gemini Vision with a prompt.
@@ -79,14 +112,10 @@ def _call_gemini_vision(image_bytes: bytes, prompt: str) -> Optional[dict]:
         return None
 
     try:
-        response = _client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=[
-                genai_types.Part.from_bytes(data=image_bytes, mime_type="image/png"),
-                prompt,
-            ],
-        )
-        text = response.text.strip()
+        text = _gemini_generate_with_retry([
+            genai_types.Part.from_bytes(data=image_bytes, mime_type="image/png"),
+            prompt,
+        ])
 
         # Strip markdown code fences if present
         if text.startswith("```"):
@@ -95,8 +124,7 @@ def _call_gemini_vision(image_bytes: bytes, prompt: str) -> Optional[dict]:
         return json.loads(text)
 
     except json.JSONDecodeError:
-        # Gemini returned non-JSON — return as raw text
-        return {"raw_text": response.text.strip()}
+        return {"raw_text": text}
     except Exception as e:
         return {"error": str(e)}
 
@@ -110,6 +138,7 @@ def detect_page_quality(image_bytes: bytes) -> dict:
     """
     prompt = """
 Assess the readability of this handwritten or scanned document page.
+The document may be in ANY language or script (Latin, Devanagari, Arabic, CJK, etc.).
 
 Consider:
 - Clarity of handwriting
@@ -147,19 +176,76 @@ Return ONLY the JSON, no other text.
     return result
 
 
+# ── STEP 1B: Language / Script Detection ──────────────────────────────────
+
+def detect_language(image_bytes: bytes) -> dict:
+    """
+    Detect the primary language and script of a handwritten page.
+    Called once per page, result is passed to transcription & evaluation steps.
+    """
+    prompt = """
+Look at this handwritten document page and identify the language and script.
+
+Respond ONLY with valid JSON:
+{
+  "language": "hindi",
+  "script": "devanagari",
+  "confidence": 0.95,
+  "is_mixed": false,
+  "secondary_language": null
+}
+
+Common script values: "latin", "devanagari", "arabic", "cyrillic", "cjk", "tamil", "telugu", "bengali", "gujarati", "kannada", "malayalam", "gurmukhi", "odia"
+Common language values: "english", "hindi", "marathi", "sanskrit", "nepali", "arabic", "urdu", "french", "spanish", "german", "chinese", "japanese", "korean", "tamil", "telugu", "bengali", "gujarati", "kannada", "malayalam", "punjabi", "odia", "uzbek", "kazakh", "russian", "turkish", "portuguese", "italian"
+
+Note on multi-script languages:
+- Uzbek may use Latin script (modern) or Cyrillic script (older). Report which one is used.
+- Kazakh may use Cyrillic script (traditional) or Latin script (new). Report which one is used.
+- If Spanish or other Latin-script languages use accented characters, still report script as "latin".
+
+If multiple languages are present, set is_mixed=true and note the secondary_language.
+Return ONLY the JSON, no other text.
+"""
+    result = _call_gemini_vision(image_bytes, prompt)
+    if not result or "error" in result:
+        return {
+            "language":           "english",
+            "script":             "latin",
+            "confidence":         0.0,
+            "is_mixed":           False,
+            "secondary_language": None,
+        }
+    return result
+
+
 # ── STEP 2: Region Detection and Classification ────────────────────────────
 
-def detect_regions(image_bytes: bytes) -> list:
+def detect_regions(image_bytes: bytes, language: str = "english", script: str = "latin") -> list:
     """
     Detect and classify all content regions on the page.
     Returns list of regions with type, position, and content hints.
     """
-    prompt = """
+    script_hint = ""
+    if script != "latin":
+        script_hint = f"""
+IMPORTANT: This document is in {language.upper()} using {script.upper()} script.
+- Treat all {script} handwriting as "text" regions with transcribable=true.
+- Do NOT misclassify {script} text as illegible or unrecognizable.
+- Labels on diagrams may also be in {script} script.
+"""
+    elif language != "english":
+        script_hint = f"""
+IMPORTANT: This document is in {language.upper()} using Latin script.
+- The text may contain diacritics and special characters (e.g. accents, ñ, ¿, ¡, oʻ).
+- Treat all handwritten text as "text" regions with transcribable=true.
+"""
+
+    prompt = f"""
 Analyze this handwritten/scanned STEM document page carefully.
 Identify every distinct content region and classify it.
-
+{script_hint}
 Region types:
-- "text"                 → plain handwritten text, sentences, explanations
+- "text"                 → plain handwritten text, sentences, explanations (in ANY language/script)
 - "math_equation"        → algebraic, calculus, statistics, matrix equations
 - "chemical_formula"     → simple chemical formulas (H2SO4, 2H2 + O2 → 2H2O)
 - "chemical_structure"   → benzene rings, structural formulas, Newman projections, reaction mechanisms
@@ -180,7 +266,7 @@ For EACH region provide:
 
 Respond ONLY with a valid JSON array:
 [
-  {
+  {{
     "type": "text",
     "y_start": 0.0,
     "y_end": 0.15,
@@ -188,8 +274,8 @@ Respond ONLY with a valid JSON array:
     "x_end": 0.95,
     "description": "Student name and heading",
     "transcribable": true
-  },
-  {
+  }},
+  {{
     "type": "biology_diagram",
     "y_start": 0.20,
     "y_end": 0.65,
@@ -197,7 +283,7 @@ Respond ONLY with a valid JSON array:
     "x_end": 0.95,
     "description": "Hand-drawn neuron diagram with labels",
     "transcribable": false
-  }
+  }}
 ]
 
 Return ONLY the JSON array, no other text.
@@ -221,10 +307,12 @@ Return ONLY the JSON array, no other text.
 
 # ── STEP 3A: Transcription (Path A — text/equations) ──────────────────────
 
-def transcribe_region(image_bytes: bytes, region: dict) -> dict:
+def transcribe_region(image_bytes: bytes, region: dict,
+                      language: str = "english", script: str = "latin") -> dict:
     """
     Transcribe a text/equation/formula region.
     Returns transcribed content in appropriate format.
+    Language-aware: handles Devanagari, Arabic, CJK, and other scripts.
     """
     region_type = region.get("type", "text")
 
@@ -248,7 +336,73 @@ Transcribe chemical content as LaTeX:
 - State symbols: (aq), (s), (l), (g)
 """
     else:
-        format_instruction = "Transcribe the handwritten text exactly as written."
+        if script == "devanagari":
+            format_instruction = f"""
+Transcribe the handwritten {language} text in its ORIGINAL Devanagari script.
+- Output the text in Devanagari Unicode characters (e.g. नमस्ते, विज्ञान, गणित).
+- Do NOT transliterate to Latin/Roman script.
+- Do NOT translate to English.
+- Preserve the original spelling, punctuation, and line breaks.
+- If the student has mixed {language} and English, preserve both as-is.
+- If any Devanagari characters are unclear, provide your best guess and note in illegible_sections.
+"""
+        elif script in ("arabic", "urdu"):
+            format_instruction = f"""
+Transcribe the handwritten {language} text in its ORIGINAL {script} script.
+- Output using original Unicode characters. Do NOT transliterate to Latin.
+- Preserve right-to-left ordering.
+- If mixed with English, preserve both scripts as-is.
+"""
+        elif script == "cyrillic":
+            format_instruction = f"""
+Transcribe the handwritten {language} text in its ORIGINAL Cyrillic script.
+- Output using Cyrillic Unicode characters.
+- Do NOT transliterate to Latin/Roman script.
+- Do NOT translate to English.
+- Preserve all special characters unique to {language}.
+- If the student has mixed {language} and English, preserve both as-is.
+"""
+        elif script in ("bengali", "tamil", "telugu", "gujarati", "kannada",
+                         "malayalam", "gurmukhi", "odia"):
+            format_instruction = f"""
+Transcribe the handwritten {language} text in its ORIGINAL {script} script.
+- Output using original Unicode characters. Do NOT transliterate to Latin.
+- Preserve the original spelling and punctuation.
+- If mixed with English, preserve both scripts as-is.
+"""
+        elif language == "spanish":
+            format_instruction = """
+Transcribe the handwritten Spanish text exactly as written.
+- Preserve ALL Spanish diacritics and special characters: á, é, í, ó, ú, ñ, ü, ¿, ¡
+- Do NOT strip accents or replace with plain ASCII equivalents.
+- Do NOT translate to English.
+- If mixed with English, preserve both as-is.
+"""
+        elif language == "uzbek" and script == "latin":
+            format_instruction = """
+Transcribe the handwritten Uzbek text in its ORIGINAL Latin script.
+- Preserve all Uzbek-specific characters: Oʻ/oʻ, Gʻ/gʻ, Sh/sh, Ch/ch.
+- Use the correct apostrophe character (ʻ) for O'zbek letters, not a plain quote.
+- Do NOT translate to English.
+- If mixed with English, preserve both as-is.
+"""
+        elif language == "kazakh" and script == "latin":
+            format_instruction = """
+Transcribe the handwritten Kazakh text in its ORIGINAL Latin script.
+- Preserve all Kazakh-specific Latin characters with diacritics.
+- Do NOT translate to English or transliterate to Cyrillic.
+- If mixed with English, preserve both as-is.
+"""
+        elif language not in ("english",) and script == "latin":
+            format_instruction = f"""
+Transcribe the handwritten {language} text exactly as written.
+- Preserve ALL diacritics, accents, and special characters of {language}.
+- Do NOT strip accents or replace with plain ASCII equivalents.
+- Do NOT translate to English.
+- If mixed with English, preserve both as-is.
+"""
+        else:
+            format_instruction = "Transcribe the handwritten text exactly as written."
 
     prompt = f"""
 Transcribe the handwritten content in this image.
@@ -260,6 +414,7 @@ Respond ONLY with valid JSON:
   "transcription": "the transcribed content",
   "format": "plain_text or latex",
   "confidence": 0.90,
+  "language": "{language}",
   "illegible_sections": []
 }}
 
@@ -411,9 +566,30 @@ def generate_text_feedback(
         }
 
     try:
+        lang_note = ""
+        if language.lower() != "english":
+            script_examples = {
+                "hindi":    "Devanagari (e.g. यह उत्तर सही है)",
+                "marathi":  "Devanagari",
+                "arabic":   "Arabic script",
+                "urdu":     "Urdu/Nastaliq script",
+                "spanish":  "Spanish with proper accents (á, é, í, ó, ú, ñ, ¿, ¡)",
+                "uzbek":    "the same script the student used (Latin with oʻ/gʻ or Cyrillic)",
+                "kazakh":   "the same script the student used (Cyrillic or Latin)",
+                "russian":  "Cyrillic script",
+            }
+            script_hint = script_examples.get(language.lower(), f"the original script of {language}")
+            lang_note = f"""
+NOTE: The student's answer is written in {language.upper()}.
+- Read and understand the {language} text as-is. Do NOT assume it is transliterated English.
+- Evaluate correctness based on the {language} content.
+- Provide feedback_english in English.
+- Provide feedback_translated in {language} using {script_hint}.
+"""
+
         prompt = f"""
 You are evaluating a student's handwritten STEM submission.
-
+{lang_note}
 SUBJECT: {subject or "STEM"}
 QUESTION: {question or "Evaluate this answer"}
 STUDENT ANSWER (transcribed from handwriting):
@@ -433,11 +609,7 @@ Respond ONLY with valid JSON:
 
 Return ONLY the JSON, no other text.
 """
-        response = _client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=prompt,
-        )
-        text     = response.text.strip()
+        text = _gemini_generate_with_retry(prompt)
         if text.startswith("```"):
             text = re.sub(r"```(?:json)?", "", text).strip("` \n")
         return json.loads(text)
@@ -531,25 +703,28 @@ def build_annotation(
 # ── MAIN PROCESS FUNCTION ──────────────────────────────────────────────────
 
 def process(
-    file_content:  bytes,
-    job_id:        str,
-    filename:      str,
-    content_type:  str  = "",
-    questions:     list = None,
-    subject:       str  = "",
-    language:      str  = "english",
+    file_content:      bytes,
+    job_id:            str,
+    filename:          str,
+    content_type:      str      = "",
+    questions:         list     = None,
+    subject:           str      = "",
+    language:          str      = "english",
+    progress_callback: callable = None,
 ) -> dict:
     """
     Main entry point for the OCR pipeline.
 
     Args:
-        file_content : raw bytes (scanned PDF or phone photo)
-        job_id       : unique job ID from app.py
-        filename     : original filename
-        content_type : MIME type
-        questions    : list of question dicts [{q_id, number, text}]
-        subject      : subject context for better evaluation
-        language     : detected language for bilingual feedback
+        file_content      : raw bytes (scanned PDF or phone photo)
+        job_id            : unique job ID from app.py
+        filename          : original filename
+        content_type      : MIME type
+        questions         : list of question dicts [{q_id, number, text}]
+        subject           : subject context for better evaluation
+        language          : detected language for bilingual feedback
+        progress_callback : optional callable(percent: int, message: str)
+                            called after each page so the caller can update job_store
 
     Returns:
         dict matching diagrams_tables.py schema + OCR-specific fields
@@ -591,6 +766,40 @@ def process(
 
         total_pages = len(page_images_bytes)
 
+        # ── Detect language from first page (reuse for all pages) ─────
+        if language == "english" and page_images_bytes:
+            lang_detect = detect_language(page_images_bytes[0])
+            detected_lang   = lang_detect.get("language", "english")
+            detected_script = lang_detect.get("script", "latin")
+            if lang_detect.get("confidence", 0) > 0.5:
+                language = detected_lang
+        else:
+            detected_script = "latin"
+            if language in ("hindi", "marathi", "sanskrit", "nepali"):
+                detected_script = "devanagari"
+            elif language in ("arabic", "urdu"):
+                detected_script = "arabic"
+            elif language in ("russian",):
+                detected_script = "cyrillic"
+            elif language in ("kazakh",):
+                detected_script = "cyrillic"
+            elif language in ("uzbek",):
+                detected_script = "latin"
+            elif language in ("bengali",):
+                detected_script = "bengali"
+            elif language in ("tamil",):
+                detected_script = "tamil"
+            elif language in ("telugu",):
+                detected_script = "telugu"
+            elif language in ("gujarati",):
+                detected_script = "gujarati"
+            elif language in ("kannada",):
+                detected_script = "kannada"
+            elif language in ("malayalam",):
+                detected_script = "malayalam"
+            elif language in ("punjabi",):
+                detected_script = "gurmukhi"
+
         # ── Process each page ─────────────────────────────────────────
         for page_idx, page_png in enumerate(page_images_bytes):
             page_num = page_idx + 1
@@ -623,7 +832,7 @@ def process(
                 continue
 
             # ── Detect regions ────────────────────────────────────────
-            regions = detect_regions(page_png)
+            regions = detect_regions(page_png, language=language, script=detected_script)
 
             full_page_text = ""
 
@@ -642,7 +851,10 @@ def process(
 
                 if is_transcribable:
                     # ── PATH A: Transcribe then evaluate ─────────────
-                    transcription = transcribe_region(region_image, region)
+                    transcription = transcribe_region(
+                        region_image, region,
+                        language=language, script=detected_script,
+                    )
                     text_content  = transcription.get("transcription", "")
                     full_page_text += f"\n{text_content}"
 
@@ -726,6 +938,11 @@ def process(
                 "skipped":    False,
             })
 
+            if progress_callback:
+                # Map page progress into the 20–85% range reserved for OCR
+                page_pct = int(20 + (page_num / total_pages) * 65)
+                progress_callback(page_pct, f"OCR page {page_num}/{total_pages}…")
+
         return {
             "job_id":            job_id,
             "status":            "done",
@@ -741,6 +958,8 @@ def process(
             "page_image_cache":  page_image_cache,
             "page_quality_map":  page_quality_map,
             "ocr_pipeline":      True,
+            "detected_language": language,
+            "detected_script":   detected_script,
         }
 
     finally:
