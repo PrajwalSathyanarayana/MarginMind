@@ -289,20 +289,20 @@ async def upload_text_qa(
 async def get_page_image(job_id: str, page_num: int):
     """Returns a single PDF page rendered as a PNG image."""
     import base64
+    from fastapi.responses import Response, JSONResponse
 
     if job_id not in job_store:
-        return {"error": "Job not found"}
+        return JSONResponse(status_code=404, content={"error": "Job not found"})
 
     job    = job_store[job_id]
     cached = job.get("page_image_cache", {}).get(str(page_num))
     if cached:
-        from fastapi.responses import Response
         return Response(
             content=base64.b64decode(cached),
             media_type="image/png",
         )
 
-    return {"error": "Page not available — re-upload document"}
+    return JSONResponse(status_code=404, content={"error": "Page not available — re-upload document"})
 
 
 if __name__ == "__main__":
