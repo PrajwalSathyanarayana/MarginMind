@@ -356,11 +356,20 @@ AVAILABLE CRITERIA TYPES:
 
 {judge_feedback}
 
+IMPORTANT CONTEXT:
+- This is a multi-page assignment. Answers may appear anywhere in the document,
+  not necessarily in the same order as the questions.
+- The submission text may be a continuous essay or numbered responses — search
+  the ENTIRE text before concluding a question was not answered.
+- Students often answer questions implicitly (e.g., by referring to a concept
+  without restating the question number). Look for relevant content, not just
+  explicit "Answer to Q1:" markers.
+
 For EACH question, you must:
-1. Find where the student answered it in the submission
+1. Search the ENTIRE submission text for content related to that question
 2. Select the most appropriate evaluation criteria type
-3. Evaluate the answer against that criteria
-4. Provide specific feedback with exact phrases to highlight
+3. Evaluate the quality of the answer found
+4. Provide specific, constructive feedback
 
 Return ONLY valid JSON array (one object per question):
 [
@@ -384,7 +393,9 @@ CRITICAL RULES:
 - Return array with exactly {num_questions} objects (one per question)
 - highlight_phrase must be EXACT text from submission or null
 - Scores are 0.0 to 1.0
-- If student didn't answer a question, set overall_score to 0.0""")
+- Only set overall_score to 0.0 if you are certain no relevant content exists
+  anywhere in the submission for that question — do NOT assume unanswered just
+  because the answer is not near the question number""")
     
     parser = JsonOutputParser()
     
@@ -481,7 +492,7 @@ def batch_evaluate_node(state: BatchEvaluationState) -> BatchEvaluationState:
         
         result = chain.invoke({
             "questions":      questions_text,
-            "submission":     state["full_text"][:40000],
+            "submission":     state["full_text"][:80000],
             "judge_feedback": state.get("judge_feedback"),
             "num_questions":  len(state["questions"])
         })
@@ -516,7 +527,7 @@ def batch_evaluate_node(state: BatchEvaluationState) -> BatchEvaluationState:
                 if single_chain:
                     single_result = single_chain.invoke({
                         "questions":      f"{missing_num}. {q_text}",
-                        "submission":     state["full_text"][:40000],
+                        "submission":     state["full_text"][:80000],
                         "judge_feedback": None,
                         "num_questions":  1
                     })
@@ -574,7 +585,7 @@ def batch_judge_node(state: BatchEvaluationState) -> BatchEvaluationState:
         
         result = chain.invoke({
             "questions": questions_text,
-            "submission": state["full_text"][:40000],
+            "submission": state["full_text"][:80000],
             "evaluations": state["evaluations"],
             "num_evals": len(state["questions"])
         })
