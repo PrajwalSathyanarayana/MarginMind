@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 
-export default function PDFViewer({ pdfFile, annotations = [], jobId = null, pageCount = 1 }) {
+export default function PDFViewer({ pdfFile, annotations = [], evaluations = [], jobId = null, pageCount = 1 }) {
   const [currentPage,    setCurrentPage]    = useState(1);
   const [pageImageUrl,   setPageImageUrl]   = useState(null);
+  const [pageImageError, setPageImageError] = useState(false);
   const [imgDimensions,  setImgDimensions]  = useState({ width: 0, height: 0 });
   const [activeAnnotation, setActiveAnnotation] = useState(null);
   const [loadingPage,    setLoadingPage]    = useState(false);
@@ -15,17 +16,27 @@ export default function PDFViewer({ pdfFile, annotations = [], jobId = null, pag
 
   const totalPages = pageCount || 1;
 
+  // Stable blob URL for iframe fallback — revoked when pdfFile changes
+  const pdfBlobUrl = useMemo(() => {
+    if (!pdfFile) return null;
+    return URL.createObjectURL(pdfFile);
+  }, [pdfFile]);
+  useEffect(() => {
+    return () => { if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl); };
+  }, [pdfBlobUrl]);
+
   // ── Fetch page image ───────────────────────────────────────────────
   useEffect(() => {
     if (!jobId) return;
     setLoadingPage(true);
     setPageImageUrl(null);
+    setPageImageError(false);
 
     let objectUrl = null;
     fetch(`http://127.0.0.1:8000/page/${jobId}/${currentPage}`)
       .then(res => { if (!res.ok) throw new Error("Page not found"); return res.blob(); })
       .then(blob => { objectUrl = URL.createObjectURL(blob); setPageImageUrl(objectUrl); })
-      .catch(() => setPageImageUrl(null))
+      .catch(() => { setPageImageUrl(null); setPageImageError(true); })
       .finally(() => setLoadingPage(false));
 
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
@@ -46,7 +57,25 @@ export default function PDFViewer({ pdfFile, annotations = [], jobId = null, pag
     return () => observer.disconnect();
   }, [pageImageUrl]);
 
-  const pageAnnotations = annotations.filter(a => a.page === currentPage);
+  // Build sidebar items: prefer evaluations (always available) over annotation objects
+  const sidebarItems = evaluations.length > 0
+    ? evaluations.flatMap(ev =>
+        (ev.feedback || []).map((fb, fi) => ({
+          id:            `ev-${ev.qa_pair_id || ev.question_number}-${fi}`,
+          questionLabel: ev.qa_pair_id || `Q${ev.question_number}`,
+          region_type:   fb.criterion || "answer",
+          feedback:      fb.comment || "",
+          score:         fb.score ?? ev.overall_score ?? 0,
+          confidence:    fb.confidence ?? fb.score ?? 0.75,
+          overallScore:  ev.overall_score,
+          page:          fb.bbox?.page || null,
+          bbox:          fb.bbox || null,
+        }))
+      )
+    : annotations;
+
+  // Overlay highlights: only bbox-backed annotations on the current page
+  const pageAnnotations = annotations.filter(a => a.page === currentPage && a.bbox);
 
   // ── Find which annotation is closest to current scroll position ────
   const getActiveAnnotationFromScroll = useCallback(() => {
@@ -54,24 +83,19 @@ export default function PDFViewer({ pdfFile, annotations = [], jobId = null, pag
 
     const panelScrollTop = pdfPanelRef.current.scrollTop;
     const panelHeight    = pdfPanelRef.current.clientHeight;
-    // Center of the visible PDF viewport as a fraction of image height
     const viewCenterY    = (panelScrollTop + panelHeight * 0.35) / imgDimensions.height;
 
     if (pageAnnotations.length === 0) return null;
 
-    // Find closest annotation to the center of the viewport
     let closest     = null;
     let closestDist = Infinity;
 
     for (const ann of pageAnnotations) {
-      const bbox   = ann.bbox;
+      const bbox = ann.bbox;
       if (!bbox) continue;
-      const annY   = (bbox.y || bbox.y0 || 0) + (bbox.height || 0) / 2;
-      const dist   = Math.abs(annY - viewCenterY);
-      if (dist < closestDist) {
-        closestDist = dist;
-        closest     = ann;
-      }
+      const annY = (bbox.y || bbox.y0 || 0) + (bbox.height || 0) / 2;
+      const dist = Math.abs(annY - viewCenterY);
+      if (dist < closestDist) { closestDist = dist; closest = ann; }
     }
 
     return closest;
@@ -117,24 +141,26 @@ const scrollCardIntoView = useCallback((annId) => {
     return () => panel.removeEventListener("scroll", handlePdfScroll);
   }, [handlePdfScroll]);
 
-  // ── Click annotation card → scroll PDF to that region ─────────────
+  // ── Click annotation card → navigate to its page then scroll ────────
   const handleCardClick = useCallback((ann) => {
     setActiveAnnotation(ann);
 
-    if (!pdfPanelRef.current || !imgRef.current || imgDimensions.height === 0) return;
+    // Navigate to the annotation's page first (if different from current)
+    if (ann.page && ann.page !== currentPage) {
+      setCurrentPage(ann.page);
+      return; // scroll will happen after re-render on the new page
+    }
 
-    const bbox   = ann.bbox;
+    if (!pdfPanelRef.current || !imgRef.current || imgDimensions.height === 0) return;
+    const bbox = ann.bbox;
     if (!bbox) return;
+
     const annY   = (bbox.y || bbox.y0 || 0) * imgDimensions.height;
     const panelH = pdfPanelRef.current.clientHeight;
-
     isSyncingRef.current = true;
-    pdfPanelRef.current.scrollTo({
-      top:      annY - panelH * 0.3,
-      behavior: "smooth",
-    });
+    pdfPanelRef.current.scrollTo({ top: annY - panelH * 0.3, behavior: "smooth" });
     setTimeout(() => { isSyncingRef.current = false; }, 500);
-  }, [imgDimensions]);
+  }, [imgDimensions, currentPage]);
 
   const scoreColor = (score) => {
     if (score >= 0.7) return { bg: "rgba(74,222,128,0.25)",  border: "#4ade80" };
@@ -153,97 +179,94 @@ const scrollCardIntoView = useCallback((annId) => {
         </div>
 
         <div ref={marginBodyRef} style={styles.marginBody}>
-          {pageAnnotations.length === 0 ? (
+          {sidebarItems.length === 0 ? (
             <div style={styles.emptyState}>
               <div style={{ fontSize: "1.8rem", marginBottom: "10px", opacity: 0.4 }}>💬</div>
-              <p style={styles.emptyText}>No feedback for this page.</p>
+              <p style={styles.emptyText}>No feedback available.</p>
             </div>
           ) : (
-            pageAnnotations.map((ann, i) => {
-              const colors   = scoreColor(ann.score ?? ann.confidence);
-              const isActive = activeAnnotation?.id === ann.id;
+            sidebarItems.map((item, i) => {
+              const scoreVal = item.score ?? item.confidence ?? 0;
+              const colors   = scoreColor(scoreVal);
+              const isActive = activeAnnotation?.id === item.id;
+              const onThisPage = item.page ? item.page === currentPage : true;
               return (
                 <div
-                  key={ann.id || i}
-                  ref={el => { if (el) cardRefs.current[ann.id] = el; }}
-                  onClick={() => handleCardClick(ann)}
+                  key={item.id || i}
+                  ref={el => { if (el) cardRefs.current[item.id] = el; }}
+                  onClick={() => item.bbox ? handleCardClick(item) : null}
                   style={{
                     ...styles.annotationCard,
                     borderLeft:  `3px solid ${colors.border}`,
                     background:  isActive ? colors.bg : "#fff",
                     boxShadow:   isActive ? `0 0 0 2px ${colors.border}` : "none",
                     transform:   isActive ? "translateX(3px)" : "none",
+                    opacity:     onThisPage ? 1 : 0.72,
                     transition:  "all 0.2s",
-                    cursor:      "pointer",
+                    cursor:      item.bbox ? "pointer" : "default",
                   }}
                 >
                   <div style={styles.annotationMeta}>
-                    {ann.questionLabel && (
+                    {item.questionLabel && (
                       <span style={{
                         ...styles.regionBadge,
                         background: "#1a1a2e", color: "#fff",
                       }}>
-                        {ann.questionLabel}
+                        {item.questionLabel}
                       </span>
                     )}
                     <span style={{
                       ...styles.regionBadge,
                       background: "#ede9fe", color: "#5b21b6",
                     }}>
-                      {ann.region_type}
+                      {item.region_type}
                     </span>
+                    {/* Page chip */}
+                    {item.page && (
+                      <span style={{
+                        ...styles.regionBadge,
+                        background: onThisPage ? "#f0fdf4" : "#f3f4f6",
+                        color:      onThisPage ? "#166534"  : "#6b7280",
+                        border:     `1px solid ${onThisPage ? "#bbf7d0" : "#e5e7eb"}`,
+                      }}>
+                        p.{item.page}
+                      </span>
+                    )}
                     <span style={{
                       ...styles.confidenceBadge,
                       background: colors.bg,
                       color:      colors.border,
                       border:     `1px solid ${colors.border}`,
+                      marginLeft: "auto",
                     }}>
-                      {Math.round((ann.score ?? ann.confidence) * 100)}%
+                      {Math.round(scoreVal * 100)}%
                     </span>
                   </div>
-                  <p style={styles.feedbackText}>{ann.feedback}</p>
+                  <p style={styles.feedbackText}>{item.feedback}</p>
 
-                  {/* Diagram element breakdown — only for visual regions */}
-                  {(ann.elements_present?.length > 0 ||
-                    ann.elements_missing?.length > 0 ||
-                    ann.elements_incorrect?.length > 0) && (
-                    <div style={{ marginTop: "8px" }}>
-                      {ann.elements_present?.map((el, i) => (
-                        <div key={i} style={{
-                          fontSize: "0.72rem", color: "#166534",
-                          display: "flex", gap: "4px", marginBottom: "2px"
+                  {/* Overall score bar when coming from evaluations */}
+                  {item.overallScore !== undefined && (
+                    <div style={{ marginTop: "6px" }}>
+                      <div style={{
+                        display: "flex", alignItems: "center", gap: "6px",
+                        fontSize: "0.7rem", color: "#6b7280",
+                      }}>
+                        <span>Overall</span>
+                        <div style={{
+                          flex: 1, height: "4px", borderRadius: "2px",
+                          background: "#e5e7eb", overflow: "hidden",
                         }}>
-                          <span>✓</span><span>{el}</span>
+                          <div style={{
+                            height: "100%",
+                            width: `${Math.round(item.overallScore * 100)}%`,
+                            background: colors.border,
+                            borderRadius: "2px",
+                          }} />
                         </div>
-                      ))}
-                      {ann.elements_incorrect?.map((el, i) => (
-                        <div key={i} style={{
-                          fontSize: "0.72rem", color: "#92400e",
-                          display: "flex", gap: "4px", marginBottom: "2px"
-                        }}>
-                          <span>⚠</span><span>{el}</span>
-                        </div>
-                      ))}
-                      {ann.elements_missing?.map((el, i) => (
-                        <div key={i} style={{
-                          fontSize: "0.72rem", color: "#991b1b",
-                          display: "flex", gap: "4px", marginBottom: "2px"
-                        }}>
-                          <span>✗</span><span>{el}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Quality warning */}
-                  {ann.quality_warning && (
-                    <div style={{
-                      marginTop: "6px", fontSize: "0.68rem",
-                      color: "#92400e", background: "#fef3c7",
-                      border: "1px solid #fde68a", borderRadius: "4px",
-                      padding: "3px 8px",
-                    }}>
-                      ⚠ {ann.quality_warning}
+                        <span style={{ fontWeight: 600, color: colors.border }}>
+                          {Math.round(item.overallScore * 100)}%
+                        </span>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -284,9 +307,10 @@ const scrollCardIntoView = useCallback((annId) => {
             </div>
           )}
 
-          {!jobId && pdfFile && (
+          {/* Fallback: show PDF directly when page image is unavailable */}
+          {(!pageImageUrl && !loadingPage && pdfBlobUrl) && (
             <iframe
-              src={URL.createObjectURL(pdfFile) + `#page=${currentPage}`}
+              src={`${pdfBlobUrl}#page=${currentPage}`}
               style={styles.iframe}
               title="PDF"
             />
@@ -310,10 +334,10 @@ const scrollCardIntoView = useCallback((annId) => {
               />
 
               {/* Annotation highlight overlays */}
-              {/* MAP 1 — Colored highlight boxes on the text */}
+              {/* MAP 1 — Colored highlight boxes on the text (only when bbox available) */}
               {imgDimensions.width > 0 && pageAnnotations.map((ann, i) => {
                 const bbox   = ann.bbox;
-                if (!bbox) return null;
+                if (!bbox) return null;  // no location data — sidebar card still shown
                 const colors   = scoreColor(ann.score ?? ann.confidence);
                 const isActive = activeAnnotation?.id === ann.id;
 
