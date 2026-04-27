@@ -6,8 +6,10 @@ from pathlib import Path
 import fitz
 import uuid
 import os
+import time
 from Modal.text import process as process_text
 from Modal.diagrams_tables import process as process_diagrams
+from metrics_logger import log_evaluation
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -235,10 +237,12 @@ async def upload_text_qa(
     submission:    UploadFile = File(...),
 ):
     """Text-based Q&A evaluation endpoint."""
+    t_upload_start = time.time()
     job_id = str(uuid.uuid4())
 
     questionnaire_content = await questionnaire.read()
     submission_content    = await submission.read()
+    upload_read_s         = round(time.time() - t_upload_start, 3)
 
     result = process_text(
         questionnaire_content  = questionnaire_content,
@@ -247,6 +251,35 @@ async def upload_text_qa(
         questionnaire_filename = questionnaire.filename,
         submission_filename    = submission.filename,
     )
+
+    # ── Persist metrics for poster graphs ────────────────────────────────
+    evaluations = result.get("evaluations", [])
+    confidence_scores = [
+        f["confidence"]
+        for e in evaluations
+        for f in e.get("feedback", [])
+        if isinstance(f.get("confidence"), (int, float))
+    ]
+    overall_scores = [
+        e["overall_score"]
+        for e in evaluations
+        if isinstance(e.get("overall_score"), (int, float))
+    ]
+
+    timing = result.get("timing", {})
+    timing["upload_read_s"] = upload_read_s
+    timing.setdefault("total_s", round(
+        upload_read_s + timing.get("extraction_s", 0) + timing.get("ai_evaluation_s", 0), 3
+    ))
+
+    log_evaluation({
+        "job_id":           job_id,
+        "question_count":   result.get("question_count", 0),
+        "confidence_scores": confidence_scores,
+        "overall_scores":   overall_scores,
+        "timing":           timing,
+    })
+    # ─────────────────────────────────────────────────────────────────────
 
     job_store[job_id] = result
     return result
