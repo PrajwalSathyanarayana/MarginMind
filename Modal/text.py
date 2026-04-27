@@ -21,6 +21,7 @@ import tempfile
 import os
 import json
 import re
+import time
 from pathlib import Path
 from typing import List, Dict, Any, Optional, TypedDict
 
@@ -786,20 +787,26 @@ def process(questionnaire_content: bytes, submission_content: bytes, job_id: str
         temp_s.write(submission_content)
 
     try:
+        t_start = time.time()
+
         # Extract questions
         questions = extract_questions_simple(temp_q_path)
-        
+
         # Extract full text (no answer segmentation!)
         full_text = extract_full_text(temp_s_path)
-        
+
         # Extract all words with bboxes
         all_words = extract_all_words_with_bboxes(temp_s_path)
-        
+
+        t_extracted = time.time()
+
         # Run batch evaluation with LangGraph
         evaluations = evaluate_batch_with_langgraph(
             questions, full_text, all_words, job_id
         )
-        
+
+        t_evaluated = time.time()
+
         # Build QA pairs for compatibility
         qa_pairs = []
         for i, question in enumerate(questions):
@@ -810,21 +817,28 @@ def process(questionnaire_content: bytes, submission_content: bytes, job_id: str
                 "match_method": "llm_batch"
             })
 
+        timing = {
+            "extraction_s":  round(t_extracted - t_start,    3),
+            "ai_evaluation_s": round(t_evaluated - t_extracted, 3),
+            "total_s":       round(t_evaluated - t_start,    3),
+        }
+
         return {
             "job_id": job_id,
             "status": "done",
             "questionnaire_filename": questionnaire_filename,
             "submission_filename": submission_filename,
             "question_count": len(questions),
-            "answer_count": len(questions),  # Same as questions
+            "answer_count": len(questions),
             "matched_pairs": len(questions),
             "needs_review_count": sum(
-                1 for e in evaluations 
-                if not e.get("judge_approved", True) or 
+                1 for e in evaluations
+                if not e.get("judge_approved", True) or
                    any(f.get("bbox") is None and f.get("highlight_phrase") for f in e.get("feedback", []))
             ),
             "qa_pairs": qa_pairs,
             "evaluations": evaluations,
+            "timing": timing,
         }
 
     finally:
