@@ -124,6 +124,7 @@ export default function App() {
   const runSelfContainedEvaluation = async (uploadResult) => {
     setMode("qa");
     setLoading(true);
+    setPdfFile(submissionFile);
     try {
       const formData = new FormData();
       formData.append("questionnaire", submissionFile);
@@ -136,7 +137,8 @@ export default function App() {
 
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
       const result = await res.json();
-      setJobResult(result);
+      // Preserve the upload job_id so /page endpoint can serve cached page images
+      setJobResult({ ...result, job_id: uploadResult.job_id, page_count: uploadResult.page_count });
       const evals = result.evaluations || result.qa_pairs || [];
       setEvaluations(evals);
       console.log("Evaluations received:", evals.length, evals);
@@ -237,18 +239,18 @@ export default function App() {
         let annIndex = 1;
         for (const evaluation of (evalResult.evaluations || [])) {
           for (const item of (evaluation.feedback || [])) {
-            if (!item.bbox) continue;
-            const bbox = item.bbox;
+            const bbox = item.bbox || null;
             anns.push({
               id:            `qa-ann-${annIndex++}`,
-              page:          bbox.page || 1,
+              // No bbox → place on page 1 so the sidebar card still shows
+              page:          bbox?.page || 1,
               questionLabel: evaluation.qa_pair_id || `Q${evaluation.question_number}`,
-              bbox: {
+              bbox:          bbox ? {
                 x:      bbox.x0            || 0.05,
                 y:      bbox.y0            || 0.05,
                 width:  (bbox.x1 - bbox.x0) || 0.9,
                 height: (bbox.y1 - bbox.y0) || 0.04,
-              },
+              } : null,
               region_type:  item.criterion || "answer",
               feedback:     item.comment   || "",
               confidence:   item.confidence || item.score || 0.75,
@@ -583,11 +585,13 @@ export default function App() {
               <PDFViewer
                 pdfFile={pdfFile}
                 annotations={annotations}
+                evaluations={evaluations}
                 jobId={jobResult?.job_id}
                 pageCount={jobResult?.page_count || 1}
               />
             </div>
           )}
+
         </>
       )}
     </div>
