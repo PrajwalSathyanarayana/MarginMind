@@ -1,0 +1,1002 @@
+[
+  {
+    "job_id": "f8aca353-6298-4108-ac01-4c64dfe549c7",
+    "question_count": 10,
+    "confidence_scores": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "overall_scores": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      0.0,
+      0.0,
+      1.0,
+      1.0,
+      0.0,
+      0.0
+    ],
+    "timing": {
+      "extraction_s": 2.531,
+      "ai_evaluation_s": 8.216,
+      "total_s": 10.747,
+      "upload_read_s": 0.0
+    },
+    "logged_at": "2026-04-27T04:12:16.008029"
+  },
+  {
+    "job_id": "e88d9902-3560-4637-b4a8-3a67c7217643",
+    "question_count": 0,
+    "confidence_scores": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "overall_scores": [
+      0.9,
+      1.0,
+      1.0,
+      1.0,
+      0.2,
+      0.0,
+      1.0,
+      1.0,
+      0.0,
+      0.1
+    ],
+    "timing": {
+      "extraction_s": 0.46,
+      "ai_evaluation_s": 7.198,
+      "total_s": 7.658,
+      "upload_read_s": 0.0
+    },
+    "logged_at": "2026-04-27T04:13:08.246682"
+  },
+  {
+    "job_id": "7c186bd7-4f18-400a-b5de-9e55490ce4b4",
+    "question_count": 0,
+    "confidence_scores": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "overall_scores": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      0.0,
+      0.0,
+      1.0,
+      1.0,
+      0.0,
+      0.2
+    ],
+    "timing": {
+      "extraction_s": 0.404,
+      "ai_evaluation_s": 7.199,
+      "total_s": 7.603,
+      "upload_read_s": 0.0
+    },
+    "logged_at": "2026-04-27T04:13:50.193438"
+  },
+  {
+    "job_id": "a7140f81-18e4-4b3f-8120-6575808934cc",
+    "question_count": 0,
+    "confidence_scores": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      0.95,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "overall_scores": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "timing": {
+      "extraction_s": 0.492,
+      "ai_evaluation_s": 10.217,
+      "total_s": 10.709,
+      "upload_read_s": 0.0
+    },
+    "logged_at": "2026-04-27T04:14:32.189395"
+  },
+  {
+    "job_id": "e3f98f48-a54d-4f8b-9dde-2570922fdb05",
+    "question_count": 0,
+    "confidence_scores": [
+      0.95,
+      0.95,
+      0.95,
+      0.95,
+      0.95,
+      0.95,
+      0.95,
+      0.95,
+      0.95,
+      0.95
+    ],
+    "overall_scores": [
+      0.9,
+      0.95,
+      0.9,
+      0.9,
+      0.2,
+      0.1,
+      0.9,
+      0.95,
+      0.2,
+      0.3
+    ],
+    "timing": {
+      "extraction_s": 0.529,
+      "ai_evaluation_s": 8.065,
+      "total_s": 8.595,
+      "upload_read_s": 0.0
+    },
+    "logged_at": "2026-04-27T04:26:22.174718"
+  },
+  {
+    "job_id": "2ac06b5c-362c-484b-b055-ec84ef032231",
+    "question_count": 2,
+    "confidence_scores": [
+      1.0,
+      0.95,
+      1.0,
+      0.95
+    ],
+    "overall_scores": [
+      0.98,
+      0.95
+    ],
+    "timing": {
+      "extraction_s": 2.424,
+      "ai_evaluation_s": 5.335,
+      "total_s": 7.759,
+      "upload_read_s": 0.0
+    },
+    "logged_at": "2026-04-27T04:27:12.244139"
+  },
+  {
+    "job_id": "72bb8a82-0c75-4955-b86d-c404131424ac",
+    "question_count": 18,
+    "confidence_scores": [
+      1.0,
+      0.9,
+      1.0,
+      0.9,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "overall_scores": [
+      0.0,
+      0.5,
+      1.0,
+      0.8,
+      1.0,
+      1.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "timing": {
+      "extraction_s": 2.62,
+      "ai_evaluation_s": 9.268,
+      "total_s": 11.888,
+      "upload_read_s": 0.0
+    },
+    "logged_at": "2026-04-27T04:28:08.369579"
+  },
+  {
+    "job_id": "3c42acb2-65ed-4476-b8d2-026c00758585",
+    "question_count": 8,
+    "confidence_scores": [
+      1.0,
+      1.0,
+      0.9,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "overall_scores": [
+      0.2,
+      1.0,
+      0.7,
+      0.6,
+      1.0,
+      1.0,
+      1.0,
+      0.0
+    ],
+    "timing": {
+      "extraction_s": 0.297,
+      "ai_evaluation_s": 5.762,
+      "total_s": 6.059,
+      "upload_read_s": 0.0
+    },
+    "logged_at": "2026-04-27T04:29:46.546988"
+  },
+  {
+    "job_id": "912df94c-706b-4166-b2c6-63459264137c",
+    "question_count": 8,
+    "confidence_scores": [],
+    "overall_scores": [],
+    "timing": {
+      "extraction_s": 0.524,
+      "ai_evaluation_s": 7.443,
+      "total_s": 7.967,
+      "upload_read_s": 0.001
+    },
+    "logged_at": "2026-04-27T04:30:27.460578"
+  },
+  {
+    "job_id": "411ad04b-2eeb-4472-974c-697baf8074bd",
+    "question_count": 9,
+    "confidence_scores": [
+      1.0,
+      0.95,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      0.9,
+      1.0,
+      1.0
+    ],
+    "overall_scores": [
+      1.0,
+      0.8,
+      1.0,
+      0.2,
+      1.0,
+      0.1,
+      0.5,
+      0.0,
+      0.0
+    ],
+    "timing": {
+      "extraction_s": 0.34,
+      "ai_evaluation_s": 7.03,
+      "total_s": 7.37,
+      "upload_read_s": 0.0
+    },
+    "logged_at": "2026-04-27T04:30:53.843284"
+  },
+  {
+    "job_id": "df59750e-9adb-4191-a247-5a771835bcbf",
+    "question_count": 8,
+    "confidence_scores": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "overall_scores": [
+      0.0,
+      1.0,
+      0.8,
+      0.1,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "timing": {
+      "extraction_s": 0.33,
+      "ai_evaluation_s": 6.229,
+      "total_s": 6.559,
+      "upload_read_s": 0.0
+    },
+    "logged_at": "2026-04-27T04:31:42.033402"
+  },
+  {
+    "job_id": "cf03cd18-d18a-46f1-a438-08ab28611375",
+    "question_count": 8,
+    "confidence_scores": [],
+    "overall_scores": [],
+    "timing": {
+      "extraction_s": 0.463,
+      "ai_evaluation_s": 6.103,
+      "total_s": 6.566,
+      "upload_read_s": 0.0
+    },
+    "logged_at": "2026-04-27T04:34:48.881550"
+  },
+  {
+    "job_id": "40e64caf-37f6-4802-ad5f-db0ae8e0fc7c",
+    "question_count": 9,
+    "confidence_scores": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "overall_scores": [
+      1.0,
+      0.4,
+      1.0,
+      0.5,
+      1.0,
+      0.2,
+      1.0,
+      0.0,
+      0.0
+    ],
+    "timing": {
+      "extraction_s": 0.39,
+      "ai_evaluation_s": 6.284,
+      "total_s": 6.674,
+      "upload_read_s": 0.0
+    },
+    "logged_at": "2026-04-27T04:35:20.149463"
+  },
+  {
+    "job_id": "e479276a-ea70-476a-906a-e492b5449613",
+    "question_count": 8,
+    "confidence_scores": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "overall_scores": [
+      0.0,
+      1.0,
+      0.2,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "timing": {
+      "extraction_s": 0.233,
+      "ai_evaluation_s": 5.32,
+      "total_s": 5.553,
+      "upload_read_s": 0.0
+    },
+    "logged_at": "2026-04-27T04:35:48.035208"
+  },
+  {
+    "job_id": "26a08b04-a4ef-4965-8922-61fd1345e6a9",
+    "question_count": 8,
+    "confidence_scores": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "overall_scores": [
+      1.0,
+      1.0,
+      0.7,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      0.0
+    ],
+    "timing": {
+      "extraction_s": 0.534,
+      "ai_evaluation_s": 7.351,
+      "total_s": 7.885,
+      "upload_read_s": 0.0
+    },
+    "logged_at": "2026-04-27T04:43:25.364734"
+  },
+  {
+    "job_id": "38d1bdb0-f80a-4cf3-9920-5133d032033b",
+    "question_count": 8,
+    "confidence_scores": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "overall_scores": [
+      1.0,
+      1.0,
+      0.0,
+      0.2,
+      1.0,
+      1.0,
+      1.0,
+      0.0
+    ],
+    "timing": {
+      "extraction_s": 0.378,
+      "ai_evaluation_s": 6.276,
+      "total_s": 6.654,
+      "upload_read_s": 0.0
+    },
+    "logged_at": "2026-04-27T04:44:05.138763"
+  },
+  {
+    "job_id": "95f967b4-7754-43f7-b037-5b961d2ec224",
+    "question_count": 8,
+    "confidence_scores": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "overall_scores": [
+      1.0,
+      0.0,
+      0.5,
+      0.2,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "timing": {
+      "extraction_s": 0.24,
+      "ai_evaluation_s": 6.859,
+      "total_s": 7.099,
+      "upload_read_s": 0.0
+    },
+    "logged_at": "2026-04-27T04:44:41.582102"
+  },
+  {
+    "job_id": "72363f16-883e-44d5-ad59-3ed728d9b521",
+    "question_count": 18,
+    "confidence_scores": [
+      1.0,
+      0.9,
+      1.0,
+      0.9,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "overall_scores": [
+      0.0,
+      0.5,
+      1.0,
+      0.8,
+      1.0,
+      1.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "timing": {
+      "extraction_s": 2.441,
+      "ai_evaluation_s": 9.964,
+      "total_s": 12.406,
+      "upload_read_s": 0.0
+    },
+    "logged_at": "2026-04-27T04:45:36.910713"
+  },
+  {
+    "job_id": "8acc0598-3325-4f96-8ed9-c9b7421e6dbe",
+    "question_count": 8,
+    "confidence_scores": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "overall_scores": [
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "timing": {
+      "extraction_s": 0.356,
+      "ai_evaluation_s": 7.318,
+      "total_s": 7.675,
+      "upload_read_s": 0.0
+    },
+    "logged_at": "2026-04-27T04:48:42.161500"
+  },
+  {
+    "job_id": "2ef03b08-7b1d-42fb-b1d0-214b0dcb87ba",
+    "question_count": 9,
+    "confidence_scores": [],
+    "overall_scores": [],
+    "timing": {
+      "extraction_s": 0.53,
+      "ai_evaluation_s": 6.621,
+      "total_s": 7.15,
+      "upload_read_s": 0.0
+    },
+    "logged_at": "2026-04-27T04:49:18.628385"
+  },
+  {
+    "job_id": "2eae326b-3d63-4512-aa96-4a9e64d87d93",
+    "question_count": 8,
+    "confidence_scores": [
+      1.0,
+      1.0,
+      0.9,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "overall_scores": [
+      1.0,
+      1.0,
+      0.5,
+      0.5,
+      1.0,
+      1.0,
+      1.0,
+      0.0
+    ],
+    "timing": {
+      "extraction_s": 0.35,
+      "ai_evaluation_s": 6.592,
+      "total_s": 6.943,
+      "upload_read_s": 0.0
+    },
+    "logged_at": "2026-04-27T04:49:49.420888"
+  },
+  {
+    "job_id": "f95ea4bb-23a4-4d2e-a752-1efe5226d3e6",
+    "question_count": 18,
+    "confidence_scores": [
+      1.0,
+      0.9,
+      1.0,
+      0.9,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "overall_scores": [
+      0.0,
+      0.5,
+      1.0,
+      0.8,
+      1.0,
+      1.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "timing": {
+      "extraction_s": 3.633,
+      "ai_evaluation_s": 10.732,
+      "total_s": 14.365,
+      "upload_read_s": 0.0
+    },
+    "logged_at": "2026-04-27T04:53:39.847650"
+  },
+  {
+    "job_id": "645d79c0-9d30-418b-8f43-08f9d8b1d6a8",
+    "question_count": 9,
+    "confidence_scores": [
+      1.0,
+      1.0,
+      0.9,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "overall_scores": [
+      1.0,
+      1.0,
+      0.6,
+      0.0,
+      1.0,
+      1.0,
+      0.5,
+      0.0,
+      0.0
+    ],
+    "timing": {
+      "extraction_s": 0.253,
+      "ai_evaluation_s": 6.64,
+      "total_s": 6.893,
+      "upload_read_s": 0.0
+    },
+    "logged_at": "2026-04-27T05:00:52.374632"
+  },
+  {
+    "job_id": "dc2c4eaa-68a5-496b-805c-7078f04f2ba3",
+    "question_count": 18,
+    "confidence_scores": [
+      1.0,
+      0.9,
+      0.95,
+      0.9,
+      0.95,
+      0.95,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "overall_scores": [
+      0.0,
+      0.5,
+      0.8,
+      0.7,
+      0.8,
+      0.8,
+      0.9,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "timing": {
+      "extraction_s": 1.933,
+      "ai_evaluation_s": 9.611,
+      "total_s": 11.544,
+      "upload_read_s": 0.0
+    },
+    "logged_at": "2026-04-27T05:01:58.019415"
+  },
+  {
+    "job_id": "cff4a5d6-368a-4aa6-89d1-b6da5e9c9cca",
+    "question_count": 18,
+    "confidence_scores": [
+      1.0,
+      0.9,
+      1.0,
+      0.9,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "overall_scores": [
+      0.0,
+      0.5,
+      0.9,
+      0.8,
+      0.9,
+      0.9,
+      0.9,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "timing": {
+      "extraction_s": 3.291,
+      "ai_evaluation_s": 9.951,
+      "total_s": 13.242,
+      "upload_read_s": 0.0
+    },
+    "logged_at": "2026-04-27T05:10:45.721779"
+  },
+  {
+    "job_id": "0bd6a7df-6cf5-4303-bb4c-c7e985febbd3",
+    "question_count": 9,
+    "confidence_scores": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "overall_scores": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      0.9,
+      1.0,
+      1.0,
+      0.9,
+      1.0
+    ],
+    "timing": {
+      "extraction_s": 2.0,
+      "ai_evaluation_s": 6.993,
+      "total_s": 8.994,
+      "upload_read_s": 0.0
+    },
+    "logged_at": "2026-04-27T05:12:43.477812"
+  },
+  {
+    "job_id": "342398bf-6f7f-4f7a-8e41-94f6fdeb78ec",
+    "question_count": 11,
+    "confidence_scores": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      0.95,
+      0.95,
+      1.0,
+      1.0,
+      0.95,
+      0.95
+    ],
+    "overall_scores": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      0.95,
+      0.9,
+      1.0,
+      1.0,
+      0.95,
+      0.9
+    ],
+    "timing": {
+      "extraction_s": 2.089,
+      "ai_evaluation_s": 8.904,
+      "total_s": 10.992,
+      "upload_read_s": 0.0
+    },
+    "logged_at": "2026-04-27T05:13:57.468893"
+  },
+  {
+    "job_id": "1d69cd71-e6cd-4666-b3d5-539a1f018191",
+    "question_count": 2,
+    "confidence_scores": [
+      1.0,
+      1.0
+    ],
+    "overall_scores": [
+      1.0,
+      1.0
+    ],
+    "timing": {
+      "extraction_s": 3.237,
+      "ai_evaluation_s": 5.369,
+      "total_s": 8.606,
+      "upload_read_s": 0.0
+    },
+    "logged_at": "2026-04-27T05:14:57.834886"
+  },
+  {
+    "job_id": "dd33e35f-bdbe-4890-b486-b8d5811052a3",
+    "question_count": 2,
+    "confidence_scores": [
+      1.0,
+      1.0
+    ],
+    "overall_scores": [
+      1.0,
+      1.0
+    ],
+    "timing": {
+      "extraction_s": 2.716,
+      "ai_evaluation_s": 5.144,
+      "total_s": 7.86,
+      "upload_read_s": 0.0
+    },
+    "logged_at": "2026-04-27T05:21:08.028235"
+  },
+  {
+    "job_id": "95e88827-dda5-415e-be12-7a88ea545f36",
+    "question_count": 11,
+    "confidence_scores": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "overall_scores": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "timing": {
+      "extraction_s": 2.258,
+      "ai_evaluation_s": 18.457,
+      "total_s": 20.716,
+      "upload_read_s": 0.0
+    },
+    "logged_at": "2026-04-27T05:22:07.201660"
+  }
+]
